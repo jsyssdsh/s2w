@@ -19,6 +19,7 @@
 | 문서 | 기능 | SPEC |
 |---|---|---|
 | [buyer_match](./api/buyer_match.md) | 도매처 맞춤 판매처 연계 | 5.3 |
+| [distributor](./api/distributor.md) | 유통업체 대시보드 — AI 추천 농가·거래 요청·시장 분석 | 4.3 |
 | [farm](./api/farm.md) | 농가 대시보드·출하 등록 | 4.2 / 7.1 |
 | [health](./api/health.md) | 헬스체크 | 6 |
 | [parcel_match](./api/parcel_match.md) | 유휴농지 탐색·적합도 매칭 | 5.6 / 7.3 |
