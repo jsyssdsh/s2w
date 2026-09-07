@@ -31,6 +31,7 @@ from app.models import (
     Shipment,
     Smartfarm,
     User,
+    UserRole,
     WeatherDaily,
     Wholesaler,
 )
@@ -451,6 +452,81 @@ def match_parcels(
         for index, (total, parcel, axes, distance_km, wholesaler) in enumerate(scored, start=1)
     ]
     return matches[:limit] if limit else matches
+
+
+# --------------------------------------------------------------------------
+# SPEC 7.3 — 유휴농지 등록 (토지 소유자)
+# --------------------------------------------------------------------------
+
+
+class RegistrationError(Exception):
+    """같은 지역에 같은 이름의 농지가 이미 있다 — 라우터가 409 로 옮긴다."""
+
+
+def create_parcel(
+    session: Session,
+    *,
+    name: str,
+    region_id: int,
+    area_pyeong: int,
+    monthly_rent_krw: int,
+    water_access: bool = False,
+    cold_storage_access: ColdStorageAccess = ColdStorageAccess.NONE,
+    soil_grade: str = "3등급",
+    lat: float | None = None,
+    lon: float | None = None,
+    condition: ParcelCondition = ParcelCondition.GOOD,
+    owner_name: str | None = None,
+    owner_phone: str | None = None,
+) -> tuple[Parcel, Region] | None:
+    """SPEC 7.3 첫 단계 — 토지 소유자가 유휴농지 발생을 등록한다.
+
+    좌표를 주지 않으면 시군구 중심을 쓴다. 소유자 이름을 주면
+    ``landowner`` 사용자를 함께 만들어 SPEC 4.5 상세 화면의 연락처를 채운다.
+    상태는 언제나 ``idle`` 이다 — 운영 중으로 넘기는 것은 매칭 신청뿐이다.
+    """
+    region = session.get(Region, region_id)
+    if region is None:
+        return None  # 없는 지역 — 라우터가 404 로 옮긴다
+
+    clash = session.scalar(
+        select(Parcel).where(Parcel.region_id == region_id, Parcel.name == name)
+    )
+    if clash is not None:
+        raise RegistrationError(
+            f"{region.name} 에는 이미 '{name}' 이(가) 등록돼 있습니다."
+        )
+
+    owner_id = None
+    if owner_name:
+        owner = User(
+            name=owner_name,
+            role=UserRole.LANDOWNER,
+            phone=owner_phone,
+            region_id=region_id,
+        )
+        session.add(owner)
+        session.flush()
+        owner_id = owner.id
+
+    parcel = Parcel(
+        name=name,
+        region_id=region_id,
+        owner_id=owner_id,
+        area_pyeong=area_pyeong,
+        monthly_rent_krw=monthly_rent_krw,
+        water_access=water_access,
+        cold_storage_access=cold_storage_access,
+        soil_grade=soil_grade,
+        lat=region.lat if lat is None else lat,
+        lon=region.lon if lon is None else lon,
+        status=ParcelStatus.IDLE,
+        condition=condition,
+    )
+    session.add(parcel)
+    session.commit()
+    session.refresh(parcel)
+    return parcel, region
 
 
 # --------------------------------------------------------------------------

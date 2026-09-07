@@ -16,12 +16,20 @@ fi
 # Stop existing container if running (idempotent)
 docker rm -f "$CONTAINER_NAME" &>/dev/null || true
 
+# .env is optional: a clean clone has only .env.example, and the image already
+# defaults to the same values. Passing --env-file for a missing file is a hard
+# `docker run` error, so only add it when the file is actually there.
+ENV_ARGS=()
+if [[ -f .env ]]; then
+    ENV_ARGS=(--env-file .env)
+fi
+
 # Run container
 docker run -d \
     --name "$CONTAINER_NAME" \
     -p "$PORT:8000" \
     -v farmflow-data:/app/db \
-    --env-file .env \
+    "${ENV_ARGS[@]}" \
     "$IMAGE_NAME"
 
 echo "울퉁불퉁 농장 AI running at http://localhost:$PORT"

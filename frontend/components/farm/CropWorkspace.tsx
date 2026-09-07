@@ -151,6 +151,12 @@ export function CropWorkspace({
         shipment_id: shipment.shipment_id,
         wholesaler_id: wholesalerId,
         status: 'accepted',
+        // SPEC 7.1 — 화면이 보여준 나머지 후보도 함께 넘긴다. 이걸 빼면
+        // "고르지 않았다" 는 사실이 DB 에 남지 않아 다음 추천에 음의 신호가
+        // 전혀 들어가지 않는다 (docs/api/wholesaler_rec.md 거래 피드백 루프).
+        alternatives: (recommendation.data?.candidates ?? [])
+          .map((candidate) => candidate.wholesaler_id)
+          .filter((id) => id !== wholesalerId),
       });
       onDataChanged();
       setAction('deals');

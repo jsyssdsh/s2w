@@ -1,4 +1,33 @@
+# CI 스택 — 전체 E2E 를 한 명령으로 돌린다.
+#
+#   docker compose -f docker-compose.test.yml up --build --exit-code-from playwright
+#
+# 서비스는 넷이고 순서는 depends_on 이 강제한다:
+#   mosquitto → app → sensor-sim(SPEC 7.2 자동제어 한 바퀴) → playwright
 services:
+  # SPEC 6.2 / 7.2 — ESP32 ↔ 서버 실시간 통신. 운영 스택과 같은 설정을 쓴다.
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mosquitto_sub",
+          "-h",
+          "localhost",
+          "-t",
+          "$$SYS/broker/uptime",
+          "-C",
+          "1",
+          "-W",
+          "3",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   app:
     build:
       context: .
@@ -7,8 +36,13 @@ services:
       - LLM_MOCK=true
       - DB_PATH=/tmp/test.db
       - SEED_ON_START=true
+      # 브리지를 켜야 sensor/data 구독과 control/command 발행이 돈다 (SPEC 7.2).
+      - MQTT_BROKER_URL=mqtt://mosquitto:1883
     ports:
       - "8000:8000"
+    depends_on:
+      mosquitto:
+        condition: service_healthy
     healthcheck:
       # python:3.12-slim ships no curl, so poll with the interpreter instead.
       test:
@@ -22,6 +56,29 @@ services:
       timeout: 3s
       retries: 10
 
+  # SPEC 7.2 시나리오를 실제 브로커로 한 번 태우고 나서 healthy 가 된다.
+  # 종료하지 않고 대기하는 이유는 스크립트 주석에 있다.
+  sensor-sim:
+    image: python:3.12-slim
+    volumes:
+      - ./tools:/tools:ro
+      - ./test/run-sensor-scenario.sh:/run-sensor-scenario.sh:ro
+    environment:
+      - MQTT_BROKER_URL=mqtt://mosquitto:1883
+      - FARMFLOW_API_BASE_URL=http://app:8000
+      - SMARTFARM_ID=2
+    entrypoint: ["sh", "/run-sensor-scenario.sh"]
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/sensor-scenario-done"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+
   playwright:
     # Built rather than pulled: the runner needs `npm ci` to have installed
     # @playwright/test inside the image before the specs can load.
@@ -29,6 +86,8 @@ services:
       context: ./test
     depends_on:
       app:
+        condition: service_healthy
+      sensor-sim:
         condition: service_healthy
     environment:
       - BASE_URL=http://app:8000

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import importlib
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import date
 
@@ -410,11 +410,15 @@ def record_deal(
     status: DealStatus = DealStatus.ACCEPTED,
     agreed_price_krw: int | None = None,
     decided_on: date | None = None,
+    alternatives: Sequence[int] = (),
 ) -> Deal:
     """농가가 실제로 고른 거래처를 ``deals`` 에 남긴다.
 
     - 같은 출하·도매처에 이미 ``proposed`` 행이 있으면 새로 만들지 않고 갱신한다
       (추천 제시 → 농가 선택이 한 행의 상태 변화가 되도록).
+    - ``alternatives`` 는 농가가 **함께 봤지만 고르지 않은** 도매처다. 아직
+      기록이 없으면 ``proposed`` 로 먼저 남긴다 — 화면이 보여준 제안이 DB 에는
+      없어서, 고르지 않았다는 사실이 어디에도 남지 않는 구멍을 막는다.
     - 이행 상태로 기록하면 같은 출하의 나머지 ``proposed`` 행은 ``rejected`` 로
       닫는다. 이것이 다음 추천에 들어가는 음의 신호다.
     - ``decided_on`` 을 주지 않으면 출하일을 쓴다. 벽시계 시간을 쓰지 않는다
@@ -432,6 +436,8 @@ def record_deal(
         agreed_price_krw = wholesaler.unit_price_krw * sellable
 
     settled_on = None if status == DealStatus.PROPOSED else (decided_on or shipment.ship_date)
+
+    _record_alternatives(session, shipment, wholesaler_id, alternatives)
 
     deal = session.scalar(
         select(Deal).where(
@@ -462,6 +468,46 @@ def record_deal(
     session.commit()
     session.refresh(deal)
     return deal
+
+
+def _record_alternatives(
+    session: Session,
+    shipment: Shipment,
+    chosen_id: int,
+    alternatives: Sequence[int],
+) -> None:
+    """고르지 않은 후보를 ``proposed`` 로 남긴다 (아직 기록이 없을 때만).
+
+    상태를 여기서 ``rejected`` 로 바로 쓰지 않는 이유는, 닫는 규칙이
+    :func:`record_deal` 한 곳에만 있어야 하기 때문이다. 이 함수는 "화면이 이
+    도매처를 제안으로 보여줬다" 는 사실만 남기고, 그 제안이 거절로 닫히는지는
+    기록되는 상태가 결정한다.
+    """
+    for wholesaler_id in dict.fromkeys(alternatives):
+        if wholesaler_id == chosen_id:
+            continue
+        wholesaler = session.get(Wholesaler, wholesaler_id)
+        if wholesaler is None:
+            raise RecommendationError(f"wholesaler {wholesaler_id} not found")
+        existing = session.scalar(
+            select(Deal).where(
+                Deal.shipment_id == shipment.id,
+                Deal.wholesaler_id == wholesaler_id,
+            )
+        )
+        if existing is not None:
+            continue
+        sellable = min(shipment.qty_kg, wholesaler.capacity_kg)
+        session.add(
+            Deal(
+                shipment_id=shipment.id,
+                wholesaler_id=wholesaler_id,
+                agreed_price_krw=wholesaler.unit_price_krw * sellable,
+                status=DealStatus.PROPOSED,
+                decided_on=None,
+            )
+        )
+    session.flush()
 
 
 def list_deals(

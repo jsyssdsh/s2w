@@ -21,12 +21,18 @@ if ($needsBuild) {
 # Stop existing container if running (idempotent)
 docker rm -f $ContainerName 2>$null | Out-Null
 
+# .env is optional: a clean clone has only .env.example, and the image already
+# defaults to the same values. Passing --env-file for a missing file is a hard
+# `docker run` error, so only add it when the file is actually there.
+$EnvArgs = @()
+if (Test-Path .env) { $EnvArgs = @("--env-file", ".env") }
+
 # Run container
 docker run -d `
     --name $ContainerName `
     -p "${Port}:8000" `
     -v farmflow-data:/app/db `
-    --env-file .env `
+    @EnvArgs `
     $ImageName
 
 Write-Host "울퉁불퉁 농장 AI running at http://localhost:$Port"

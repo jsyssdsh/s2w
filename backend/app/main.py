@@ -62,7 +62,12 @@ def _mount_frontend(application: FastAPI) -> None:
         name="next-assets",
     )
 
-    @application.get("/{full_path:path}", include_in_schema=False)
+    # HEAD 도 받는다: Next.js 가 링크를 프리페치할 때 HEAD 를 쏘는데, GET 만
+    # 등록해 두면 405 가 나가고 브라우저 콘솔에 오류로 찍힌다
+    # (test/specs/crosscutting.spec.ts).
+    @application.api_route(
+        "/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False
+    )
     def spa(full_path: str) -> FileResponse:
         # Unmatched API paths are a 404, not the landing page.
         if full_path.startswith("api/"):
