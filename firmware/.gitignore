@@ -1,0 +1,4 @@
+.pio/
+.vscode/
+# Wi-Fi 비밀번호 등 현장 설정. 커밋하지 않는다 (README 의 "비밀정보" 절).
+secrets.ini

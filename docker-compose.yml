@@ -1,4 +1,32 @@
 services:
+  # Mosquitto MQTT 브로커 — ESP32 ↔ 서버 실시간 통신 (SPEC 6.2 / 7.2).
+  # 토픽 계약은 docs/ARCHITECTURE.md 11.1 절.
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto-data:/mosquitto/data
+    healthcheck:
+      # 이미지에 mosquitto_sub 가 들어 있다. $SYS 트리를 한 건 받으면 살아 있는 것.
+      test:
+        [
+          "CMD",
+          "mosquitto_sub",
+          "-h",
+          "localhost",
+          "-t",
+          "$$SYS/broker/uptime",
+          "-C",
+          "1",
+          "-W",
+          "3",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   farmflow:
     build: .
     ports:
@@ -6,6 +34,41 @@ services:
     volumes:
       - farmflow-data:/app/db
     env_file: .env
+    environment:
+      # 브로커는 같은 네트워크의 서비스 이름으로 찾는다. .env 로 덮어쓸 수 있고,
+      # 빈 값이면 자동제어 브리지가 꺼진 REST 전용 모드가 된다.
+      - MQTT_BROKER_URL=${MQTT_BROKER_URL:-mqtt://mosquitto:1883}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  # 센서 시뮬레이터 — 실물 ESP32 없이 sensor/data 를 흘려 넣는다.
+  #   docker compose --profile sim run --rm sensor-sim --scenario heat_spike
+  # 기본 프로필에는 없으므로 `docker compose up` 은 브로커 + 앱만 띄운다.
+  sensor-sim:
+    profiles: ["sim"]
+    image: python:3.12-slim
+    volumes:
+      - ./tools:/tools:ro
+    working_dir: /tools
+    environment:
+      - MQTT_BROKER_URL=mqtt://mosquitto:1883
+      - FARMFLOW_API_BASE_URL=http://farmflow:8000
+    entrypoint:
+      [
+        "sh",
+        "-c",
+        "pip install --quiet 'paho-mqtt>=2.1.0' && exec python sensor_sim.py \"$$@\"",
+        "--",
+      ]
+    command: ["--smartfarm", "1", "--scenario", "all"]
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      # 앱이 떠 있어야 적정 기준을 읽어 온다. 없으면 토마토 기본값으로 떨어진다.
+      farmflow:
+        condition: service_started
 
 volumes:
   farmflow-data:
+  mosquitto-data:

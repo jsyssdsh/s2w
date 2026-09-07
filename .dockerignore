@@ -7,6 +7,12 @@
 docs/
 scripts/
 
+# 이미지에 들어가지 않는 것들. firmware/.pio 는 수백 MB 라 빌드 컨텍스트에서
+# 빼 두지 않으면 docker build 가 눈에 띄게 느려진다.
+firmware/
+mosquitto/
+tools/
+
 # Recursive — plain "node_modules/" would only match at the build context root,
 # so a stale local backend/.venv or frontend/node_modules would be copied in.
 **/db/
