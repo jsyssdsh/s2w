@@ -12,12 +12,12 @@ SPEC.md 가 "무엇을" 만들지 정의한다면, 이 문서는 "어떻게" 만
 .
 ├── backend/          FastAPI + Python 3.12 (uv 로 관리)
 │   ├── app/
-│   │   ├── main.py       앱 조립 — feature 당 include_router 한 줄
+│   │   ├── main.py       앱 조립 — 기능별 코드 없음 (라우터 자동 등록)
 │   │   ├── config.py     환경변수 설정
 │   │   ├── db.py         엔진 · 세션 · get_session 의존성
 │   │   ├── models.py     SQLAlchemy 2.0 도메인 모델 (공유 계약)
 │   │   ├── seed.py       결정론적 시드 데이터
-│   │   ├── routers/      feature 당 파일 1개 (HTTP 만)
+│   │   ├── routers/      feature 당 파일 1개 (HTTP 만) — 자동 등록됨
 │   │   ├── services/     feature 당 파일 1개 (도메인 로직)
 │   │   ├── schemas/      feature 당 파일 1개 (Pydantic v2)
 │   │   └── ml/           예측 · 추천 모델
@@ -27,7 +27,7 @@ SPEC.md 가 "무엇을" 만들지 정의한다면, 이 문서는 "어떻게" 만
 │   ├── components/   공용 UI
 │   └── lib/api.ts    단일 타입 API 클라이언트
 ├── test/             Playwright E2E (BASE_URL 을 읽는다)
-└── docs/             ARCHITECTURE.md · API.md
+└── docs/             ARCHITECTURE.md · API.md(색인) · api/<feature>.md
 ```
 
 컨테이너는 하나다. Dockerfile 이 `frontend/` 를 정적 내보내기 해서 `/app/static`
@@ -90,7 +90,8 @@ Dockerfile 이 이미 빌드하는 단일 컨테이너 안에서 시스템 전�
   ORM 객체는 `model_config = ConfigDict(from_attributes=True)` 로 변환한다.
 - `GET /api/health` 는 `{"status":"ok"}` 를 반환한다. 도커 헬스체크가 의존하므로
   **절대 바꾸지 않는다.**
-- 새 엔드포인트는 `docs/API.md` 표에 한 줄씩 추가한다.
+- 새 엔드포인트는 그 기능의 `docs/api/<feature>.md` 에 적는다.
+  `docs/API.md` 는 색인이며, 새 기능이면 링크 표에 정렬된 위치로 **한 줄만** 추가한다.
 
 ---
 
@@ -98,15 +99,36 @@ Dockerfile 이 이미 빌드하는 단일 컨테이너 안에서 시스템 전�
 
 병렬 작업이 같은 파일에서 충돌하지 않도록, **기능 하나당 파일 하나**를 지킨다.
 
+**기능 하나가 추가하는 파일은 이게 전부다:**
+
 ```
-app/routers/<feature>.py    HTTP 계층만 (경로, 상태코드, 의존성)
-app/services/<feature>.py   도메인 로직과 쿼리 — 여기에 실제 계산이 있다
-app/schemas/<feature>.py    Pydantic 입출력 모델
-app/ml/<feature>.py         학습·추론 모델
+backend/app/routers/<feature>.py    HTTP 계층만 (경로, 상태코드, 의존성)
+backend/app/services/<feature>.py   도메인 로직과 쿼리 — 여기에 실제 계산이 있다
+backend/app/schemas/<feature>.py    Pydantic 입출력 모델
+backend/app/ml/<feature>.py         학습·추론 모델 (필요할 때만)
+backend/tests/test_<feature>.py     그 기능의 SPEC 워크드 예제 검증
+docs/api/<feature>.md               그 기능의 엔드포인트 표와 스키마
 ```
 
-`app/main.py` 에는 기능별로 **`include_router` 한 줄만** 추가한다. 그 외의
-기능별 코드는 넣지 않는다.
+**`app/main.py` 와 `docs/API.md` 는 수정하지 않는다.** 유일한 예외는
+`docs/API.md` 링크 표에 정렬된 위치로 한 줄을 **추가**하는 것뿐이다.
+
+### 라우터 자동 등록
+
+`app/routers/__init__.py` 의 `include_all()` 이 `app/routers/` 안의 모듈을
+`pkgutil` 로 훑어 **모듈 이름 순**으로 `router` 를 등록한다. 그래서 기능 추가는
+파일 하나를 떨어뜨리는 것으로 끝나고, `app/main.py` 에는 `include_router` 가
+한 줄도 없다.
+
+- 모듈 이름 순 정렬이라 경로 해석 순서가 결정론적이다.
+- `router` 속성이 없는 모듈은 건너뛴다.
+- **임포트가 실패하면 모듈 이름을 로그로 남기고 예외를 다시 던진다.** 라우트가
+  조용히 사라지는 것보다 부팅 실패가 낫다.
+- 전체 라우트 표는 `backend/tests/test_router_discovery.py` 가 못 박아 둔다.
+  라우트가 사라지면 그 테스트가 깨진다.
+
+이 구조 이전에는 기능마다 `main.py` 와 `docs/API.md` 의 같은 지점을 고쳤고,
+그래서 병렬 기능 브랜치가 예외 없이 충돌했다 (s2w-3m7).
 
 프론트엔드도 같은 원칙이다: 화면은 `app/<route>/page.tsx`, 공용 UI 는
 `components/`, 서버 호출은 **전부 `lib/api.ts`** 를 거친다 (컴포넌트에서 직접

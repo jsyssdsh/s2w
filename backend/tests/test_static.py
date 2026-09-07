@@ -22,12 +22,12 @@ def static_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient
     from fastapi import FastAPI
 
     from app.config import get_settings
-    from app.main import _mount_frontend, health, reference
+    from app.main import _mount_frontend
+    from app.routers import include_all
 
     get_settings.cache_clear()
     app = FastAPI()
-    app.include_router(health.router)
-    app.include_router(reference.router)
+    include_all(app)
     _mount_frontend(app)
     try:
         yield TestClient(app)
