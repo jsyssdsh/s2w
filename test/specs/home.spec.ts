@@ -6,6 +6,7 @@ import { expect, test, type Page } from '@playwright/test';
  */
 
 const ROUTES = [
+<<<<<<< HEAD
   // `placeholder` 인 화면은 아직 EmptyState 만 있다. 화면 bead 가 내용을
   // 채우면 이 값을 false 로 바꾼다.
   { testId: 'entry-farm', path: '/farm/', heading: '농가 대시보드', placeholder: false },
@@ -16,6 +17,13 @@ const ROUTES = [
     placeholder: true,
   },
   { testId: 'entry-land', path: '/land/', heading: '유휴토지 지도', placeholder: true },
+=======
+  // `empty` 는 아직 화면이 없는 자리표시자 라우트다. 화면을 채우는 bead 가
+  // 자기 라우트의 값을 false 로 바꾸고, 내용 검증은 그 화면의 spec 이 한다.
+  { testId: 'entry-farm', path: '/farm/', heading: '농가 대시보드', empty: true },
+  { testId: 'entry-distributor', path: '/distributor/', heading: '유통업체 대시보드', empty: true },
+  { testId: 'entry-land', path: '/land/', heading: '유휴토지 지도', empty: false },
+>>>>>>> origin/main
 ] as const;
 
 async function gotoHome(page: Page) {
@@ -64,6 +72,7 @@ for (const route of ROUTES) {
     await page.getByTestId('entry-cards').getByTestId(route.testId).click();
     await expect(page).toHaveURL(new RegExp(`${route.path}$`));
     await expect(page.getByRole('heading', { level: 1, name: route.heading })).toBeVisible();
+<<<<<<< HEAD
 
     if (route.placeholder) {
       // 아직 내용이 없는 화면이라도 빈 상태를 보여준다 — 죽은 링크가 없다.
@@ -72,6 +81,14 @@ for (const route of ROUTES) {
     } else {
       await page.getByRole('link', { name: '울퉁불퉁 농장 AI' }).first().click();
     }
+=======
+    // 아직 내용이 없는 화면이라도 빈 상태를 보여준다 — 죽은 링크가 없다.
+    if (route.empty) {
+      await expect(page.getByTestId('empty-state')).toBeVisible();
+    }
+
+    await page.getByRole('link', { name: '홈으로 돌아가기' }).first().click();
+>>>>>>> origin/main
     await expect(page.getByTestId('entry-cards')).toBeVisible();
   });
 }

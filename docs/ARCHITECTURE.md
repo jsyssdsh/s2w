@@ -26,6 +26,13 @@ SPEC.md 가 "무엇을" 만들지 정의한다면, 이 문서는 "어떻게" 만
 │   ├── app/          라우트
 │   ├── components/   공용 UI
 │   └── lib/api.ts    단일 타입 API 클라이언트
+├── firmware/         ESP32 엣지 제어기 (PlatformIO · C++)
+│   ├── src/          Arduino 진입점
+│   ├── include/      핀 배치 · 주기 · 네트워크 설정
+│   ├── lib/farmcontrol/  오프라인 안전 제어 (Arduino 비의존 · 호스트 테스트)
+│   └── test/         안전 규칙 회귀 테스트
+├── mosquitto/        MQTT 브로커 설정 (docker-compose 의 mosquitto 서비스)
+├── tools/            sensor_sim.py — 실물 없이 센서 스트림을 흘려 넣는다
 ├── test/             Playwright E2E (BASE_URL 을 읽는다)
 └── docs/             ARCHITECTURE.md · API.md(색인) · api/<feature>.md
 ```
@@ -361,7 +368,11 @@ REST `POST /api/smartfarm/{id}/readings` 와 MQTT 구독자는 **같은**
 
 ### 11.3 ESP32 오프라인 안전 규칙 (SPEC 6 "인터넷 연결이 끊겨도 제한적으로 제어")
 
-펌웨어 bead 는 이 규칙에 맞춰 구현한다. 목표는 **작물을 살리는 것**이지 서버를
+구현과 배선표는 **[firmware/README.md](../firmware/README.md)** 에 있다.
+규칙 자체는 `firmware/lib/farmcontrol/` 에 Arduino 비의존 C++ 로 들어 있어
+보드 없이 회귀 테스트된다 (`firmware/run_host_tests.sh`).
+
+펌웨어는 이 규칙에 맞춰 구현한다. 목표는 **작물을 살리는 것**이지 서버를
 흉내내는 것이 아니다. 오프라인 제어는 보수적이고 시간 제한이 있다.
 
 1. **오프라인 판정** — 브로커 연결이 끊겼거나, 마지막 `control/command` 수신
@@ -384,3 +395,32 @@ REST `POST /api/smartfarm/{id}/readings` 와 MQTT 구독자는 **같은**
 6. **복귀 보고** — 오프라인 동안 수행한 동작은 복귀 후 서버에 보고한다
    (`POST /api/smartfarm/{id}/controls`, `reason` 에 `오프라인 안전 제어` 표기).
    그래야 `control_events` 가 실제 장치 이력과 어긋나지 않는다.
+
+### 11.4 브로커와 시뮬레이터
+
+`docker compose up` 은 **mosquitto + 앱**을 함께 띄운다. 브로커 설정은
+`mosquitto/mosquitto.conf`(익명 허용 · QoS 1 세션 영속 · 1883)이고, 앱의
+`MQTT_BROKER_URL` 은 `mqtt://mosquitto:1883` 으로 주입된다. `.env` 에서 덮어쓸
+수 있고, 비워 두면 REST 전용 모드가 된다.
+
+`docker-compose.test.yml` 에는 브로커가 없다 — **앱은 브로커를 요구하지
+않는다.** E2E 는 REST 경로만으로 완결된다.
+
+실물 ESP32 가 없어도 `tools/sensor_sim.py` 가 센서 쪽을 대신한다. 결정론적이며
+(`--seed`), 시나리오마다 서버의 제어 경로를 하나씩 태운다:
+
+```bash
+uv run tools/sensor_sim.py --smartfarm 1 --scenario heat_spike
+docker compose --profile sim run --rm sensor-sim --scenario all
+```
+
+| 시나리오 | 태우는 경로 |
+|---|---|
+| `normal` | 아무 명령도 나오지 않는다 (정상 상태 유지) |
+| `heat_spike` | 온도 상한 초과 → 환기 → 회복 |
+| `soil_dry_down` | 토양수분 하한 미만 → 급수 → 회복 |
+| `dusk` | 조도 기준 미만 → 조명 → 회복 |
+| `all` | 위 넷을 이어서 |
+
+`backend/tests/test_sensor_sim.py` 가 이 스트림을 실제 수집 경로에 흘려 넣어
+`sensor_readings` 행과 `control_events` 를 SPEC 5.5 표와 대조한다.
