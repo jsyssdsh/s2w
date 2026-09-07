@@ -285,6 +285,10 @@ class ControlEvent(Base):
     action: Mapped[str] = mapped_column(String(16), nullable=False)
     # Korean explanation surfaced in the dashboard.
     reason: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    # Which sensor_readings column drove this command ("temp_c", "lux", ...).
+    # The 환기팬 answers to both temperature and humidity, so the device alone
+    # does not say what value_before/value_after are measuring.
+    metric: Mapped[str | None] = mapped_column(String(32))
     value_before: Mapped[float | None] = mapped_column(Float)
     value_after: Mapped[float | None] = mapped_column(Float)
 
@@ -453,3 +457,50 @@ class Deal(Base):
 
     shipment: Mapped[Shipment] = relationship(back_populates="deals")
     wholesaler: Mapped[Wholesaler] = relationship()
+
+
+# --------------------------------------------------------------------------
+# 유휴농지 매칭 신청 (SPEC 5.6 / 7.3)
+# --------------------------------------------------------------------------
+
+
+class ParcelApplicationStatus(StrEnum):
+    """SPEC 7.3 매칭 신청 상태."""
+
+    PENDING = "pending"      # 신청 접수 (협의·계약 진행 전)
+    ACCEPTED = "accepted"    # 소유자 수락
+    REJECTED = "rejected"    # 소유자 거절
+
+
+class ParcelApplication(Base):
+    """농가가 유휴농지에 낸 임대(매칭) 신청 — SPEC 7.3 "매칭 신청".
+
+    신청이 접수되면 필지는 ``idle`` → ``operating`` 으로 넘어간다. SPEC 4.4 의
+    "오늘 신청량" 지표는 ``applied_on`` 을 센다.
+    """
+
+    __tablename__ = "parcel_applications"
+    __table_args__ = (
+        Index("ix_parcel_applications_parcel", "parcel_id"),
+        Index("ix_parcel_applications_applied_on", "applied_on"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    parcel_id: Mapped[int] = mapped_column(ForeignKey("parcels.id"), nullable=False)
+    crop_id: Mapped[int] = mapped_column(ForeignKey("crops.id"), nullable=False)
+    applicant_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    applicant_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(32))
+    lease_months: Mapped[int] = mapped_column(Integer, nullable=False, default=12)
+    message: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    # 신청 시점의 적합도 점수 (0.0–1.0). 추천 없이 직접 신청하면 비어 있다.
+    match_score: Mapped[float | None] = mapped_column(Float)
+    status: Mapped[ParcelApplicationStatus] = mapped_column(
+        _enum(ParcelApplicationStatus, "parcel_application_status"),
+        nullable=False,
+        default=ParcelApplicationStatus.PENDING,
+    )
+    applied_on: Mapped[date] = mapped_column(Date, nullable=False)
+
+    parcel: Mapped[Parcel] = relationship()
+    crop: Mapped[Crop] = relationship()
