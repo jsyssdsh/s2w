@@ -8,11 +8,47 @@
 
 | 메서드 | 경로 | 설명 | 응답 |
 |---|---|---|---|
+| POST | `/api/parcels` | 유휴농지 등록 (SPEC 7.3 토지 소유자) — 언제나 `idle` 로 생성 | `ParcelFeature` (201) |
 | POST | `/api/parcels/match` | 희망 작물·면적·예산으로 유휴농지 적합도 순위 산출 | `ParcelMatchResponse` |
 | GET | `/api/parcels/geojson?region_id=` | 지도용 GeoJSON (SPEC 4.4, 상태 색상 포함) | `ParcelFeatureCollection` |
 | GET | `/api/parcels/summary?region_id=` | 요약 지표 — 운영 중 / 전환 완료 / 오늘 신청량 / AI 추천 거래 (SPEC 4.4) | `ParcelSummaryOut` |
 | GET | `/api/parcels/{id}` | 유휴토지 상세 (SPEC 4.5) | `ParcelDetailOut` |
 | POST | `/api/parcels/{id}/applications` | 임대(매칭) 신청 — 필지를 `idle` → `operating` 으로 전환 (SPEC 7.3) | `ParcelApplicationResponse` (201) |
+
+### 유휴농지 등록 (SPEC 7.3)
+
+SPEC 7.3 흐름의 첫 단계 — "토지 소유자(유휴농지 발생 등록)". 응답은 지도가
+그대로 쓰는 `ParcelFeature` 라, 등록 직후 화면이 새 마커를 바로 그릴 수 있다.
+
+```jsonc
+// POST /api/parcels 요청
+{
+  "name": "E 시험농지",
+  "region_id": 1,
+  "area_pyeong": 2400,
+  "monthly_rent_krw": 1200000,
+  "water_access": false,            // 기본 false
+  "cold_storage_access": "none",    // possible | limited | none (기본 none)
+  "soil_grade": "3등급",             // 기본 "3등급"
+  "lat": null,                      // 생략하면 시군구 중심
+  "lon": null,
+  "condition": "good",              // best | good | needs_improvement (기본 good)
+  "owner_name": "최소유",            // 있으면 landowner 사용자를 함께 만든다
+  "owner_phone": "010-1000-0009"
+}
+```
+
+- **상태는 요청으로 정할 수 없다.** 등록은 언제나 `idle` 이고, 필지를
+  `operating` 으로 넘기는 것은 매칭 신청(`POST /api/parcels/{id}/applications`)
+  하나뿐이다. 그래야 지도가 "등록됐지만 아직 아무도 안 쓰는 땅" 을 정확히 센다.
+- **좌표는 선택이다.** 토지 소유자가 위경도를 알 이유가 없어서, 비우면 시군구
+  중심을 넣는다. 거리 축(도매처 거리)은 그 좌표로 계산된다.
+- `owner_name` 을 주면 `landowner` 역할의 사용자를 만들어 SPEC 4.5 상세의
+  연락처를 채운다. 비우면 상세의 `owner` 가 `null` 이다.
+
+없는 `region_id` 는 **404**, 같은 지역에 같은 이름이 이미 있으면 **409**
+(지도 라벨이 겹치면 어느 땅을 고른 것인지 알 수 없다), 나머지 검증 실패는
+**422** 다.
 
 ### 적합도 점수 (SPEC 5.6)
 

@@ -131,6 +131,11 @@ class DealIn(BaseModel):
     decided_on: date | None = Field(
         default=None, description="생략하면 출하일. proposed 면 비워 둔다."
     )
+    alternatives: list[int] = Field(
+        default_factory=list,
+        description="농가가 함께 본, 그러나 고르지 않은 도매처 id. 이행 상태로 "
+        "기록할 때 이들이 rejected 로 닫혀 다음 추천의 음의 신호가 된다.",
+    )
 
 
 class DealOut(BaseModel):

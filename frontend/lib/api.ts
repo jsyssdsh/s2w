@@ -409,6 +409,8 @@ export const createDeal = (
     wholesaler_id: number;
     status?: DealStatus;
     agreed_price_krw?: number;
+    /** 함께 봤지만 고르지 않은 도매처 — SPEC 7.1 피드백 루프의 음의 신호 */
+    alternatives?: number[];
   },
   options?: RequestOptions,
 ) => apiPost<Deal>('/deals', body, options);
@@ -943,6 +945,25 @@ export interface ParcelApplicationResponse {
   parcel_status: ParcelStatus;
   parcel_status_label: string;
 }
+
+export interface ParcelRegisterRequest {
+  name: string;
+  region_id: number;
+  area_pyeong: number;
+  monthly_rent_krw: number;
+  water_access?: boolean;
+  cold_storage_access?: ColdStorageAccess;
+  soil_grade?: string;
+  lat?: number | null;
+  lon?: number | null;
+  condition?: ParcelCondition;
+  owner_name?: string | null;
+  owner_phone?: string | null;
+}
+
+/** SPEC 7.3 유휴농지 등록 — 응답은 지도가 바로 쓸 수 있는 GeoJSON 피처다. */
+export const registerParcel = (body: ParcelRegisterRequest, options?: RequestOptions) =>
+  apiPost<ParcelFeature>('/parcels', body, options);
 
 export const getParcelGeoJson = (regionId?: number | null, options: RequestOptions = {}) =>
   apiGet<ParcelFeatureCollection>('/parcels/geojson', {

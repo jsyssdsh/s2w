@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import Crop, Deal, DealStatus, Farm, Region, Shipment, Wholesaler
+from app.models import Crop, Deal, DealStatus, Farm, Grade, Region, Shipment, Wholesaler
 from app.seed import ANCHOR_DATE
 from app.services import wholesaler_rec as service
 
@@ -474,3 +474,117 @@ def test_farm_origin_is_the_region_centroid(session: Session) -> None:
     farm, _ = _tomato_farm(session)
     region = session.get(Region, farm.region_id)
     assert service.farm_origin(session, farm) == (region.lat, region.lon)
+
+
+# --------------------------------------------------------------------------
+# SPEC 7.1 — 고르지 않은 후보도 기록에 남는다
+# --------------------------------------------------------------------------
+
+
+def _new_shipment(session: Session) -> Shipment:
+    """추천 이력이 하나도 없는 새 출하 — 화면에서 막 등록한 상태와 같다."""
+    farm, crop = _tomato_farm(session)
+    shipment = Shipment(
+        farm_id=farm.id,
+        crop_id=crop.id,
+        qty_kg=OFFERED_KG,
+        ship_date=ANCHOR_DATE,
+        grade=Grade.SPECIAL,
+    )
+    session.add(shipment)
+    session.commit()
+    session.refresh(shipment)
+    return shipment
+
+
+def test_alternatives_are_closed_as_rejected(scratch_session: Session) -> None:
+    """화면이 보여준 후보를 넘기면 고르지 않은 쪽이 rejected 로 닫힌다."""
+    shipment = _new_shipment(scratch_session)
+    picked = scratch_session.scalar(select(Wholesaler).where(Wholesaler.name == "B 농산물유통"))
+    others = scratch_session.scalars(
+        select(Wholesaler).where(Wholesaler.name.in_(["A 청과도매", "C 도매시장"]))
+    ).all()
+
+    service.record_deal(
+        scratch_session,
+        shipment_id=shipment.id,
+        wholesaler_id=picked.id,
+        status=DealStatus.ACCEPTED,
+        alternatives=[w.id for w in others],
+    )
+
+    deals = service.list_deals(scratch_session, shipment_id=shipment.id)
+    by_wholesaler = {deal.wholesaler_id: deal for deal in deals}
+    assert by_wholesaler[picked.id].status is DealStatus.ACCEPTED
+    for other in others:
+        assert by_wholesaler[other.id].status is DealStatus.REJECTED
+        # 거절도 결론이므로 결정일이 붙는다 — 이행률 분모에 들어간다.
+        assert by_wholesaler[other.id].decided_on == shipment.ship_date
+
+
+def test_alternatives_lower_the_next_recommendation_score(scratch_session: Session) -> None:
+    """SPEC 7.1 마지막 화살표 — 거절 기록이 다음 추천의 정렬값을 깎는다."""
+    shipment = _new_shipment(scratch_session)
+    picked = scratch_session.scalar(select(Wholesaler).where(Wholesaler.name == "B 농산물유통"))
+    passed_over = scratch_session.scalar(select(Wholesaler).where(Wholesaler.name == "A 청과도매"))
+
+    before = {c.name: c for c in _recommend(scratch_session).candidates}
+    service.record_deal(
+        scratch_session,
+        shipment_id=shipment.id,
+        wholesaler_id=picked.id,
+        status=DealStatus.ACCEPTED,
+        alternatives=[passed_over.id],
+    )
+    after = {c.name: c for c in _recommend(scratch_session).candidates}
+
+    assert after["A 청과도매"].reliability.decided > before["A 청과도매"].reliability.decided
+    assert after["A 청과도매"].reliability.score < before["A 청과도매"].reliability.score
+    # 순수익 자체는 건드리지 않는다 — 이행률은 정렬 기준값에만 붙는다.
+    assert after["A 청과도매"].net_profit_krw == before["A 청과도매"].net_profit_krw
+    assert after["A 청과도매"].ranking_score_krw < after["A 청과도매"].net_profit_krw
+    # 감점 상한이 15% 라 SPEC 5.2 의 결론(B 1위)은 그대로다.
+    assert after["B 농산물유통"].rank == 1
+
+
+def test_alternatives_do_not_overwrite_an_existing_record(scratch_session: Session) -> None:
+    """이미 결론난 도매처는 다시 제안으로 되돌리지 않는다."""
+    shipment = _new_shipment(scratch_session)
+    picked = scratch_session.scalar(select(Wholesaler).where(Wholesaler.name == "B 농산물유통"))
+    other = scratch_session.scalar(select(Wholesaler).where(Wholesaler.name == "A 청과도매"))
+
+    service.record_deal(
+        scratch_session,
+        shipment_id=shipment.id,
+        wholesaler_id=other.id,
+        status=DealStatus.SETTLED,
+    )
+    service.record_deal(
+        scratch_session,
+        shipment_id=shipment.id,
+        wholesaler_id=picked.id,
+        status=DealStatus.ACCEPTED,
+        alternatives=[other.id],
+    )
+
+    deals = service.list_deals(scratch_session, shipment_id=shipment.id)
+    by_wholesaler = {deal.wholesaler_id: deal for deal in deals}
+    assert by_wholesaler[other.id].status is DealStatus.SETTLED
+    assert len(deals) == 2
+
+
+def test_unknown_alternative_is_rejected_by_the_api(client: TestClient, session: Session) -> None:
+    shipment = session.scalars(select(Shipment)).first()
+
+    response = client.post(
+        "/api/deals",
+        json={
+            "shipment_id": shipment.id,
+            "wholesaler_id": shipment.deals[0].wholesaler_id
+            if shipment.deals
+            else session.scalars(select(Wholesaler)).first().id,
+            "alternatives": [99_999],
+        },
+    )
+
+    assert response.status_code == 404

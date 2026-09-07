@@ -33,7 +33,11 @@ services:
       - "8000:8000"
     volumes:
       - farmflow-data:/app/db
-    env_file: .env
+    # .env 는 선택 사항이다. 클린 클론에서 `docker compose up` 이 바로 돌아가야
+    # 하므로 required: false — 없으면 아래 environment 기본값으로 뜬다.
+    env_file:
+      - path: .env
+        required: false
     environment:
       # 브로커는 같은 네트워크의 서비스 이름으로 찾는다. .env 로 덮어쓸 수 있고,
       # 빈 값이면 자동제어 브리지가 꺼진 REST 전용 모드가 된다.

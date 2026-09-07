@@ -54,6 +54,7 @@ def create_deal(
             status=payload.status,
             agreed_price_krw=payload.agreed_price_krw,
             decided_on=payload.decided_on,
+            alternatives=payload.alternatives,
         )
     except service.RecommendationError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

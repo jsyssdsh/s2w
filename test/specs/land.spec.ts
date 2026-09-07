@@ -47,7 +47,8 @@ test('지도가 시드 농지를 상태 색으로 보여준다 (SPEC 4.4)', asyn
   await expect(summary).toContainText('전환 완료');
   await expect(summary).toContainText('오늘 신청량');
   await expect(summary).toContainText('AI 추천 거래');
-  await expect(summary).toContainText('전체 유휴농지 3곳');
+  // 시나리오 spec(SPEC 7.3)이 농지를 새로 등록하므로 총 건수는 못박지 않는다.
+  await expect(summary).toContainText(/전체 유휴농지 \d+곳/);
 });
 
 test('조건 비교가 SPEC 5.6 순위를 재현한다 (A 1위 / B 2위 / C 3위)', async ({ page }) => {

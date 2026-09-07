@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db import get_session
-from app.models import Crop
+from app.models import Crop, Parcel, Region
 from app.schemas.parcel_match import (
     AxisScoreOut,
     FacilityOut,
@@ -25,6 +25,7 @@ from app.schemas.parcel_match import (
     ParcelMatchOut,
     ParcelMatchRequest,
     ParcelMatchResponse,
+    ParcelRegisterIn,
     ParcelSummaryOut,
     PointGeometry,
     SmartfarmOut,
@@ -106,39 +107,75 @@ def match(
     )
 
 
+def _feature(parcel: Parcel, region: Region) -> ParcelFeature:
+    """필지 하나를 SPEC 4.4 지도 피처로. 지도와 등록 응답이 같은 모양을 쓴다."""
+    condition_label, color, color_hex = service.condition_style(parcel.condition)
+    return ParcelFeature(
+        id=parcel.id,
+        geometry=PointGeometry(coordinates=(parcel.lon, parcel.lat)),
+        properties=ParcelFeatureProperties(
+            id=parcel.id,
+            name=parcel.name,
+            region_id=region.id,
+            region_name=region.name,
+            area_pyeong=parcel.area_pyeong,
+            monthly_rent_krw=parcel.monthly_rent_krw,
+            water_access=parcel.water_access,
+            cold_storage_access=parcel.cold_storage_access,
+            soil_grade=parcel.soil_grade,
+            status=parcel.status,
+            status_label=service.STATUS_LABELS[parcel.status],
+            condition=parcel.condition,
+            condition_label=condition_label,
+            color=color,
+            color_hex=color_hex,
+        ),
+    )
+
+
+@router.post("", response_model=ParcelFeature, status_code=status.HTTP_201_CREATED)
+def register(
+    body: ParcelRegisterIn,
+    session: Session = Depends(get_session),
+) -> ParcelFeature:
+    """SPEC 7.3 유휴농지 등록. 등록 직후의 상태는 언제나 유휴다."""
+    try:
+        created = service.create_parcel(
+            session,
+            name=body.name,
+            region_id=body.region_id,
+            area_pyeong=body.area_pyeong,
+            monthly_rent_krw=body.monthly_rent_krw,
+            water_access=body.water_access,
+            cold_storage_access=body.cold_storage_access,
+            soil_grade=body.soil_grade,
+            lat=body.lat,
+            lon=body.lon,
+            condition=body.condition,
+            owner_name=body.owner_name,
+            owner_phone=body.owner_phone,
+        )
+    except service.RegistrationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    if created is None:
+        raise HTTPException(status_code=404, detail=f"지역 {body.region_id} 을(를) 찾을 수 없습니다.")
+
+    return _feature(*created)
+
+
 @router.get("/geojson", response_model=ParcelFeatureCollection)
 def geojson(
     region_id: int | None = Query(default=None, description="비우면 전체 지역"),
     session: Session = Depends(get_session),
 ) -> ParcelFeatureCollection:
     """SPEC 4.4 지도용 GeoJSON. 색상은 condition 에서 나온다 (녹/황/적)."""
-    features = []
-    for parcel, region in service.list_parcels(session, region_id):
-        condition_label, color, color_hex = service.condition_style(parcel.condition)
-        features.append(
-            ParcelFeature(
-                id=parcel.id,
-                geometry=PointGeometry(coordinates=(parcel.lon, parcel.lat)),
-                properties=ParcelFeatureProperties(
-                    id=parcel.id,
-                    name=parcel.name,
-                    region_id=region.id,
-                    region_name=region.name,
-                    area_pyeong=parcel.area_pyeong,
-                    monthly_rent_krw=parcel.monthly_rent_krw,
-                    water_access=parcel.water_access,
-                    cold_storage_access=parcel.cold_storage_access,
-                    soil_grade=parcel.soil_grade,
-                    status=parcel.status,
-                    status_label=service.STATUS_LABELS[parcel.status],
-                    condition=parcel.condition,
-                    condition_label=condition_label,
-                    color=color,
-                    color_hex=color_hex,
-                ),
-            )
-        )
-    return ParcelFeatureCollection(features=features)
+    return ParcelFeatureCollection(
+        features=[
+            _feature(parcel, region)
+            for parcel, region in service.list_parcels(session, region_id)
+        ]
+    )
 
 
 @router.get("/summary", response_model=ParcelSummaryOut)

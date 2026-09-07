@@ -10,7 +10,7 @@ WORKDIR /work
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY playwright.config.ts ./
+COPY playwright.config.ts global-setup.ts ./
 COPY specs/ specs/
 
 CMD ["npx", "playwright", "test"]

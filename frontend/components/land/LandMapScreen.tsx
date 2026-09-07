@@ -40,6 +40,7 @@ import {
 } from './ParcelFilters';
 import { ParcelCompare } from './ParcelCompare';
 import { ApplyForm, type ApplyTarget } from './ApplyForm';
+import { ParcelRegisterForm } from './ParcelRegisterForm';
 
 /**
  * 유휴토지 관리 지도 (SPEC 4.4).
@@ -66,6 +67,7 @@ export function LandMapScreen() {
   const [query, setQuery] = useState<ParcelMatchRequest | null>(null);
   const [applyTarget, setApplyTarget] = useState<ApplyTarget | null>(null);
   const [applied, setApplied] = useState<string | null>(null);
+  const [registered, setRegistered] = useState<string | null>(null);
 
   const crops = useApi(useCallback((options) => getCrops(options), []));
   const regions = useApi(useCallback((options) => getRegions(options), []));
@@ -138,6 +140,7 @@ export function LandMapScreen() {
   function runCompare() {
     setApplyTarget(null);
     setApplied(null);
+    setRegistered(null);
     setQuery({
       crop_id: values.cropId,
       area_min_pyeong: values.areaMinPyeong,
@@ -210,6 +213,29 @@ export function LandMapScreen() {
         </StatTileGrid>
         </div>
       )}
+
+      {/* --- 유휴농지 등록 (SPEC 7.3 토지 소유자) --- */}
+      {registered ? (
+        <div data-testid="register-success">
+          <AlertBanner tone="good" title="유휴농지가 등록되었습니다">
+            {registered}
+          </AlertBanner>
+        </div>
+      ) : null}
+      {regions.status === 'success' ? (
+        <ParcelRegisterForm
+          regions={regions.data}
+          onRegistered={(feature) => {
+            setRegistered(
+              `${feature.properties.name} · ${feature.properties.region_name} — 상태 ${feature.properties.status_label}. 아래 조건 비교에서 적합도를 확인할 수 있습니다.`,
+            );
+            setSelectedId(feature.properties.id);
+            geo.reload();
+            summary.reload();
+            match.reload();
+          }}
+        />
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* --- 지도 --- */}

@@ -6,19 +6,13 @@ import { expect, test, type Page } from '@playwright/test';
  */
 
 /**
- * `empty` 는 아직 화면이 없어 EmptyState 만 있는 라우트다. 화면을 채우는 bead 가
- * 자기 라우트의 값을 false 로 바꾸고, 내용 검증은 그 화면의 spec 이 한다 —
- * 링크가 살아 있는지는 여기서 계속 확인한다.
+ * 세 화면 모두 내용이 채워졌다. 각 화면의 내용 검증은 그 화면의 spec 이 하고,
+ * 여기서는 홈에서 그 화면으로 가는 길이 살아 있는지만 본다.
  */
 const ROUTES = [
-  { testId: 'entry-farm', path: '/farm/', heading: '농가 대시보드', empty: false },
-  {
-    testId: 'entry-distributor',
-    path: '/distributor/',
-    heading: '유통업체 대시보드',
-    empty: false,
-  },
-  { testId: 'entry-land', path: '/land/', heading: '유휴토지 지도', empty: false },
+  { testId: 'entry-farm', path: '/farm/', heading: '농가 대시보드' },
+  { testId: 'entry-distributor', path: '/distributor/', heading: '유통업체 대시보드' },
+  { testId: 'entry-land', path: '/land/', heading: '유휴토지 지도' },
 ] as const;
 
 async function gotoHome(page: Page) {
@@ -67,12 +61,7 @@ for (const route of ROUTES) {
     await page.getByTestId('entry-cards').getByTestId(route.testId).click();
     await expect(page).toHaveURL(new RegExp(`${route.path}$`));
     await expect(page.getByRole('heading', { level: 1, name: route.heading })).toBeVisible();
-    // 아직 내용이 없는 화면이라도 빈 상태를 보여준다 — 죽은 링크가 없다.
-    if (route.empty) {
-      await expect(page.getByTestId('empty-state')).toBeVisible();
-    } else {
-      await expect(page.getByTestId('app-shell')).toBeVisible();
-    }
+    await expect(page.getByTestId('app-shell')).toBeVisible();
 
     // 헤더의 앱 이름은 모든 화면에 있는 홈 링크다.
     await page.getByRole('link', { name: '울퉁불퉁 농장 AI' }).first().click();

@@ -108,6 +108,38 @@ class ParcelMatchResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------
+# 유휴농지 등록 (SPEC 7.3 — 토지 소유자)
+# --------------------------------------------------------------------------
+
+
+class ParcelRegisterIn(BaseModel):
+    """SPEC 7.3 "유휴농지 발생 등록" — 위치·면적·용수·임대조건.
+
+    등록된 필지는 언제나 ``idle`` 로 시작한다. 상태를 넘기는 것은 매칭 신청
+    (:class:`ParcelApplicationCreate`) 하나뿐이라, 지도가 "등록됐지만 아무도
+    안 쓰는 땅" 을 정확히 보여준다.
+    """
+
+    name: str = Field(min_length=1, max_length=64, description="농지 이름")
+    region_id: int = Field(description="시군구 id")
+    area_pyeong: Pyeong
+    monthly_rent_krw: Krw = Field(description="월 임대료")
+    water_access: bool = Field(default=False, description="농업용수 확보 여부")
+    cold_storage_access: ColdStorageAccess = Field(
+        default=ColdStorageAccess.NONE, description="냉장창고 접근성"
+    )
+    soil_grade: str = Field(default="3등급", max_length=8, description="토양 등급")
+    #: 좌표를 생략하면 시군구 중심을 쓴다 — 소유자가 위경도를 모를 때가 많다.
+    lat: float | None = Field(default=None, ge=-90.0, le=90.0)
+    lon: float | None = Field(default=None, ge=-180.0, le=180.0)
+    condition: ParcelCondition = Field(
+        default=ParcelCondition.GOOD, description="SPEC 4.4 지도 색상 구분"
+    )
+    owner_name: str | None = Field(default=None, max_length=64, description="토지 소유자명")
+    owner_phone: str | None = Field(default=None, max_length=32)
+
+
+# --------------------------------------------------------------------------
 # 지도 (SPEC 4.4)
 # --------------------------------------------------------------------------
 

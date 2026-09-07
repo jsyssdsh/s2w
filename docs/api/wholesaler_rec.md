@@ -59,6 +59,11 @@ SPEC 6.2 의 정의를 그대로 따른다. 계산은 `app/services/wholesaler_r
 - 감점 폭 상한은 15%. 근소한 차이는 뒤집지만 SPEC 5.2 기본 순위는 흔들지 않는다.
 - 한 도매처를 `accepted` / `settled` 로 기록하면 **같은 출하의 나머지 `proposed`
   행은 `rejected` 로 닫힌다.** 이것이 다음 추천에 들어가는 음의 신호다.
+- **`alternatives`** 는 농가가 화면에서 함께 봤지만 고르지 않은 도매처 id 다.
+  아직 기록이 없으면 `proposed` 로 먼저 남기고, 그 직후 위 규칙이 `rejected` 로
+  닫는다. 화면이 보여준 제안은 DB 에 없기 때문에 이 필드가 없으면 **음의 신호가
+  전혀 쌓이지 않는다** — 수락만 계속 기록되어 이행률이 늘 1.0 근처에 머문다.
+  이미 결론난 도매처는 건드리지 않고, 없는 도매처 id 는 404 다.
 - `decided_on` 을 생략하면 출하일을 쓴다 (벽시계 시간 금지 — ARCHITECTURE 6절).
 
 임계값과 가중치는 `app/services/wholesaler_rec.py` 상단 상수 블록에 모여 있다.
@@ -125,7 +130,8 @@ SPEC 6.2 의 정의를 그대로 따른다. 계산은 `app/services/wholesaler_r
   "wholesaler_id": 2,
   "status": "accepted",       // proposed | accepted | rejected | settled
   "agreed_price_krw": null,   // 생략 시 단가 × min(출하량, 구매 가능량)
-  "decided_on": null          // 생략 시 출하일
+  "decided_on": null,         // 생략 시 출하일
+  "alternatives": [1, 3]      // 함께 봤지만 고르지 않은 도매처 id
 }
 
 // DealOut
