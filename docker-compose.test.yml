@@ -38,8 +38,10 @@ services:
       - SEED_ON_START=true
       # 브리지를 켜야 sensor/data 구독과 control/command 발행이 돈다 (SPEC 7.2).
       - MQTT_BROKER_URL=mqtt://mosquitto:1883
-    ports:
-      - "8000:8000"
+    # 호스트 포트를 열지 않는다. Playwright 는 컴포즈 네트워크에서 서비스 이름으로
+    # (BASE_URL=http://app:8000) 접근하므로 바인딩이 필요 없고, 8000 을 잡으면
+    # 개발 스택(docker-compose.yml)이나 다른 워크트리의 E2E 와 충돌해
+    # "Bind for 0.0.0.0:8000 failed: port is already allocated" 로 죽는다.
     depends_on:
       mosquitto:
         condition: service_healthy
