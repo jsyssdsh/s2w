@@ -172,7 +172,6 @@ export const getHealth = (options?: RequestOptions) =>
 export const getRegions = (options?: RequestOptions) => apiGet<Region[]>('/regions', options);
 export const getCrops = (options?: RequestOptions) => apiGet<Crop[]>('/crops', options);
 
-<<<<<<< HEAD
 /* --- 농가 대시보드 · 출하 (SPEC 4.2 / 7.1) --- */
 
 export type Grade = 'special' | 'standard' | 'offgrade' | 'near_expiry';
@@ -264,9 +263,6 @@ export const createShipment = (
 
 /* --- AI 농산물 시세 예측 (SPEC 5.1) --- */
 
-=======
-/* --- AI 농산물 시세 예측 (SPEC 5.1) --- */
-
 export interface ShippingWindowRequest {
   crop_id: number;
   region_id: number;
@@ -290,7 +286,6 @@ export interface ShippingWindowRow {
   is_baseline: boolean;
 }
 
->>>>>>> origin/main
 export interface ForecastModelInfo {
   mape_pct: number;
   backtest_days: number;
@@ -298,8 +293,6 @@ export interface ForecastModelInfo {
   max_horizon_days: number;
 }
 
-<<<<<<< HEAD
-=======
 export interface ShippingWindow {
   crop_id: number;
   crop_name: string;
@@ -312,7 +305,6 @@ export interface ShippingWindow {
   rows: ShippingWindowRow[];
 }
 
->>>>>>> origin/main
 export interface PriceActual {
   date: string;
   price_per_kg: number;
@@ -341,43 +333,13 @@ export interface PriceForecast {
   forecast: PriceForecastPoint[];
 }
 
-<<<<<<< HEAD
-export interface ShippingWindowRow {
-  date: string;
-  horizon_days: number;
-  expected_price_per_kg: number;
-  expected_revenue_krw: number;
-  change_pct_vs_baseline: number;
-  lower_price_per_kg: number;
-  upper_price_per_kg: number;
-  expected_volume_kg: number;
-  supply_outlook: string;
-  /** 즉시 출하 가능 | 출하 유지 권장 | 조기 출하 검토 */
-  guidance: string;
-  is_baseline: boolean;
-}
-
-export interface ShippingWindow {
-  crop_id: number;
-  crop_name: string;
-  region_id: number;
-  region_name: string;
-  qty_kg: number;
-  as_of: string;
-  baseline_date: string;
-  model: ForecastModelInfo;
-  rows: ShippingWindowRow[];
-}
-
 export const getPriceForecast = (
   params: { crop_id: number; region_id: number; horizon?: number; as_of?: string },
-  options?: RequestOptions,
-) => apiGet<PriceForecast>('/forecast/price', { ...options, query: params });
+  options: RequestOptions = {},
+) => apiGet<PriceForecast>('/forecast/price', { ...options, query: { ...params } });
 
-export const getShippingWindow = (
-  body: { crop_id: number; region_id: number; qty_kg: number; candidate_dates: string[] },
-  options?: RequestOptions,
-) => apiPost<ShippingWindow>('/forecast/shipping-window', body, options);
+export const getShippingWindow = (body: ShippingWindowRequest, options?: RequestOptions) =>
+  apiPost<ShippingWindow>('/forecast/shipping-window', body, options);
 
 /* --- 농가 맞춤형 도매처 추천 · 거래 (SPEC 5.2 / 7.1) --- */
 
@@ -453,20 +415,6 @@ export const createDeal = (
 
 export const getDeals = (options?: RequestOptions) => apiGet<Deal[]>('/deals', options);
 
-/* --- 스마트팜 재배환경 (SPEC 5.5) --- */
-
-export type ControlDevice = 'pump' | 'fan' | 'light';
-
-export interface SmartfarmMetric {
-=======
-export const getPriceForecast = (
-  params: { crop_id: number; region_id: number; horizon?: number; as_of?: string },
-  options: RequestOptions = {},
-) => apiGet<PriceForecast>('/forecast/price', { ...options, query: { ...params } });
-
-export const getShippingWindow = (body: ShippingWindowRequest, options?: RequestOptions) =>
-  apiPost<ShippingWindow>('/forecast/shipping-window', body, options);
-
 /* --- 스마트팜 재배환경 통합관리 (SPEC 5.5 / 7.2) --- */
 
 export type ControlDevice = 'pump' | 'fan' | 'light';
@@ -476,16 +424,11 @@ export const SENSOR_METRICS = ['temp_c', 'humidity_pct', 'soil_moisture_pct', 'l
 export type SensorMetric = (typeof SENSOR_METRICS)[number];
 
 export interface MetricStatus {
->>>>>>> origin/main
   metric: string;
   label: string;
   unit: string;
   value: number;
-<<<<<<< HEAD
-  /** 이미 단위까지 붙은 표시 문자열 (예: "29.4℃") */
-=======
   /** 서버가 정한 표시 문자열 — 조도는 절대값이 아니라 "기준의 82%" 다 */
->>>>>>> origin/main
   display: string;
   target_min: number | null;
   target_max: number | null;
@@ -496,11 +439,7 @@ export interface MetricStatus {
   control_display: string;
 }
 
-<<<<<<< HEAD
-export interface SmartfarmDeviceState {
-=======
 export interface DeviceState {
->>>>>>> origin/main
   device: ControlDevice;
   action: string;
   since: string | null;
@@ -515,22 +454,6 @@ export interface SmartfarmStatus {
   crop_id: number;
   crop: string;
   ts: string | null;
-<<<<<<< HEAD
-  metrics: SmartfarmMetric[];
-  devices: SmartfarmDeviceState[];
-}
-
-export interface ControlEvent {
-  id: number;
-  smartfarm_id: number;
-  ts: string;
-  device: ControlDevice;
-  action: string;
-  reason: string;
-  metric: string | null;
-  value_before: number | null;
-  value_after: number | null;
-=======
   metrics: MetricStatus[];
   devices: DeviceState[];
 }
@@ -550,19 +473,23 @@ export interface SensorSeries {
   from_ts: string | null;
   to_ts: string | null;
   points: SensorPoint[];
->>>>>>> origin/main
+}
+
+export interface ControlEvent {
+  id: number;
+  smartfarm_id: number;
+  ts: string;
+  device: ControlDevice;
+  action: string;
+  reason: string;
+  metric: string | null;
+  value_before: number | null;
+  value_after: number | null;
 }
 
 export const getSmartfarmStatus = (smartfarmId: number, options?: RequestOptions) =>
   apiGet<SmartfarmStatus>(`/smartfarm/${smartfarmId}/status`, options);
 
-<<<<<<< HEAD
-export const getSmartfarmControls = (
-  smartfarmId: number,
-  limit: number,
-  options?: RequestOptions,
-) => apiGet<ControlEvent[]>(`/smartfarm/${smartfarmId}/controls`, { ...options, query: { limit } });
-=======
 export const getSensorSeries = (
   smartfarmId: number,
   params: { metric?: SensorMetric; hours?: number } = {},
@@ -572,6 +499,12 @@ export const getSensorSeries = (
     ...options,
     query: { metric: params.metric, hours: params.hours },
   });
+
+export const getSmartfarmControls = (
+  smartfarmId: number,
+  limit: number,
+  options?: RequestOptions,
+) => apiGet<ControlEvent[]>(`/smartfarm/${smartfarmId}/controls`, { ...options, query: { limit } });
 
 /* --- 유휴농지 탐색·지도·상세 (SPEC 5.6 / 7.3 / 4.4 / 4.5) --- */
 
@@ -767,4 +700,3 @@ export const applyForParcel = (
   body: ParcelApplicationRequest,
   options?: RequestOptions,
 ) => apiPost<ParcelApplicationResponse>(`/parcels/${parcelId}/applications`, body, options);
->>>>>>> origin/main

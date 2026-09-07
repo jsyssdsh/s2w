@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { AppShell } from '@/components/AppShell';
+import { ButtonLink } from '@/components/ui';
 import { FarmDashboard } from '@/components/farm/FarmDashboard';
 
 export const metadata: Metadata = { title: '농가 대시보드' };
@@ -20,6 +21,7 @@ export default function Page() {
     <AppShell
       title="농가 대시보드"
       description="현재 작물과 예상 수확량, 도매 시세, AI 추천 유통처와 예상 수익률, 스마트팜 센서 현황을 한 화면에서 봅니다."
+      action={<ButtonLink href="/" variant="secondary">홈으로 돌아가기</ButtonLink>}
     >
       <FarmDashboard />
     </AppShell>
