@@ -171,3 +171,300 @@ export const getHealth = (options?: RequestOptions) =>
   apiGet<{ status: string }>('/health', options);
 export const getRegions = (options?: RequestOptions) => apiGet<Region[]>('/regions', options);
 export const getCrops = (options?: RequestOptions) => apiGet<Crop[]>('/crops', options);
+
+/* --- 농가 대시보드 · 출하 (SPEC 4.2 / 7.1) --- */
+
+export type Grade = 'special' | 'standard' | 'offgrade' | 'near_expiry';
+
+export const GRADE_OPTIONS: readonly { value: Grade; label: string }[] = [
+  { value: 'special', label: '특상품' },
+  { value: 'standard', label: '상품' },
+  { value: 'offgrade', label: '규격 외' },
+  { value: 'near_expiry', label: '판매기한 임박' },
+];
+
+export type DealStatus = 'proposed' | 'accepted' | 'rejected' | 'settled';
+
+export interface CropStatus {
+  smartfarm_id: number;
+  smartfarm_name: string;
+  smartfarm_type: string;
+  crop_id: number;
+  crop_name: string;
+  started_on: string;
+  expected_yield_kg: number;
+}
+
+export interface Farm {
+  farm_id: number;
+  name: string;
+  owner_name: string;
+  region_id: number;
+  region_name: string;
+  parcel_id: number | null;
+  crops: CropStatus[];
+  total_expected_yield_kg: number;
+}
+
+export interface DealLine {
+  deal_id: number;
+  wholesaler_id: number;
+  wholesaler_name: string;
+  agreed_price_krw: number;
+  status: DealStatus;
+  status_label: string;
+  decided_on: string | null;
+}
+
+export interface Shipment {
+  shipment_id: number;
+  farm_id: number;
+  crop_id: number;
+  crop_name: string;
+  qty_kg: number;
+  ship_date: string;
+  grade: Grade;
+  grade_label: string;
+  deals: DealLine[];
+}
+
+export interface ShipmentInput {
+  crop_id: number;
+  qty_kg: number;
+  ship_date: string;
+  grade: Grade;
+}
+
+export interface Wholesaler {
+  id: number;
+  name: string;
+  region_id: number;
+  lat: number;
+  lon: number;
+  unit_price_krw: number;
+  capacity_kg: number;
+  fee_rate: number;
+  transport_cost_per_km: number;
+}
+
+export const getFarms = (options?: RequestOptions) => apiGet<Farm[]>('/farms', options);
+
+export const getWholesalers = (options?: RequestOptions) =>
+  apiGet<Wholesaler[]>('/wholesalers', options);
+
+export const getShipments = (farmId: number, options?: RequestOptions) =>
+  apiGet<Shipment[]>('/shipments', { ...options, query: { farm_id: farmId } });
+
+export const createShipment = (
+  farmId: number,
+  body: ShipmentInput,
+  options?: RequestOptions,
+) => apiPost<Shipment>(`/farms/${farmId}/shipments`, body, options);
+
+/* --- AI 농산물 시세 예측 (SPEC 5.1) --- */
+
+export interface ForecastModelInfo {
+  mape_pct: number;
+  backtest_days: number;
+  trained_through: string;
+  max_horizon_days: number;
+}
+
+export interface PriceActual {
+  date: string;
+  price_per_kg: number;
+  volume_kg: number;
+}
+
+export interface PriceForecastPoint {
+  date: string;
+  horizon_days: number;
+  expected_price_per_kg: number;
+  lower_price_per_kg: number;
+  upper_price_per_kg: number;
+  expected_volume_kg: number;
+  supply_outlook: string;
+}
+
+export interface PriceForecast {
+  crop_id: number;
+  crop_name: string;
+  region_id: number;
+  region_name: string;
+  as_of: string;
+  horizon_days: number;
+  model: ForecastModelInfo;
+  actuals: PriceActual[];
+  forecast: PriceForecastPoint[];
+}
+
+export interface ShippingWindowRow {
+  date: string;
+  horizon_days: number;
+  expected_price_per_kg: number;
+  expected_revenue_krw: number;
+  change_pct_vs_baseline: number;
+  lower_price_per_kg: number;
+  upper_price_per_kg: number;
+  expected_volume_kg: number;
+  supply_outlook: string;
+  /** 즉시 출하 가능 | 출하 유지 권장 | 조기 출하 검토 */
+  guidance: string;
+  is_baseline: boolean;
+}
+
+export interface ShippingWindow {
+  crop_id: number;
+  crop_name: string;
+  region_id: number;
+  region_name: string;
+  qty_kg: number;
+  as_of: string;
+  baseline_date: string;
+  model: ForecastModelInfo;
+  rows: ShippingWindowRow[];
+}
+
+export const getPriceForecast = (
+  params: { crop_id: number; region_id: number; horizon?: number; as_of?: string },
+  options?: RequestOptions,
+) => apiGet<PriceForecast>('/forecast/price', { ...options, query: params });
+
+export const getShippingWindow = (
+  body: { crop_id: number; region_id: number; qty_kg: number; candidate_dates: string[] },
+  options?: RequestOptions,
+) => apiPost<ShippingWindow>('/forecast/shipping-window', body, options);
+
+/* --- 농가 맞춤형 도매처 추천 · 거래 (SPEC 5.2 / 7.1) --- */
+
+export interface WholesalerReliability {
+  score: number;
+  fulfilled: number;
+  decided: number;
+  proposed_total: number;
+}
+
+export interface WholesalerCandidate {
+  rank: number;
+  wholesaler_id: number;
+  name: string;
+  distance_km: number;
+  unit_price_krw: number;
+  list_unit_price_krw: number;
+  capacity_kg: number;
+  /** min(출하량, 구매 가능량) */
+  sellable_kg: number;
+  unsold_kg: number;
+  gross_krw: number;
+  transport_cost_krw: number;
+  fee_rate: number;
+  fee_krw: number;
+  net_profit_krw: number;
+  ranking_score_krw: number;
+  reliability: WholesalerReliability;
+  reason: string;
+}
+
+export interface WholesalerRecommendation {
+  farm_id: number;
+  farm_name: string;
+  crop_id: number;
+  crop_name: string;
+  qty_kg: number;
+  ship_date: string;
+  price_source: 'static' | 'forecast';
+  notes: string[];
+  candidates: WholesalerCandidate[];
+}
+
+export interface Deal {
+  id: number;
+  shipment_id: number;
+  wholesaler_id: number;
+  agreed_price_krw: number;
+  status: DealStatus;
+  decided_on: string | null;
+}
+
+export const getWholesalerRecommendations = (
+  body: {
+    farm_id: number;
+    crop_id: number;
+    qty_kg: number;
+    ship_date: string;
+    use_forecast?: boolean;
+  },
+  options?: RequestOptions,
+) => apiPost<WholesalerRecommendation>('/recommendations/wholesalers', body, options);
+
+export const createDeal = (
+  body: {
+    shipment_id: number;
+    wholesaler_id: number;
+    status?: DealStatus;
+    agreed_price_krw?: number;
+  },
+  options?: RequestOptions,
+) => apiPost<Deal>('/deals', body, options);
+
+export const getDeals = (options?: RequestOptions) => apiGet<Deal[]>('/deals', options);
+
+/* --- 스마트팜 재배환경 (SPEC 5.5) --- */
+
+export type ControlDevice = 'pump' | 'fan' | 'light';
+
+export interface SmartfarmMetric {
+  metric: string;
+  label: string;
+  unit: string;
+  value: number;
+  /** 이미 단위까지 붙은 표시 문자열 (예: "29.4℃") */
+  display: string;
+  target_min: number | null;
+  target_max: number | null;
+  target_display: string;
+  in_range: boolean;
+  device: ControlDevice | null;
+  device_action: string | null;
+  control_display: string;
+}
+
+export interface SmartfarmDeviceState {
+  device: ControlDevice;
+  action: string;
+  since: string | null;
+  reason: string;
+}
+
+export interface SmartfarmStatus {
+  smartfarm_id: number;
+  name: string;
+  farm_id: number;
+  type: string;
+  crop_id: number;
+  crop: string;
+  ts: string | null;
+  metrics: SmartfarmMetric[];
+  devices: SmartfarmDeviceState[];
+}
+
+export interface ControlEvent {
+  id: number;
+  smartfarm_id: number;
+  ts: string;
+  device: ControlDevice;
+  action: string;
+  reason: string;
+  metric: string | null;
+  value_before: number | null;
+  value_after: number | null;
+}
+
+export const getSmartfarmStatus = (smartfarmId: number, options?: RequestOptions) =>
+  apiGet<SmartfarmStatus>(`/smartfarm/${smartfarmId}/status`, options);
+
+export const getSmartfarmControls = (
+  smartfarmId: number,
+  limit: number,
+  options?: RequestOptions,
+) => apiGet<ControlEvent[]>(`/smartfarm/${smartfarmId}/controls`, { ...options, query: { limit } });

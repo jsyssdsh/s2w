@@ -13,6 +13,57 @@
 | GET | `/api/health` | 헬스체크 (도커 healthcheck 가 사용) | `{"status":"ok"}` |
 | GET | `/api/regions` | 시군구 목록 | `RegionOut[]` |
 | GET | `/api/crops` | 품목 목록 | `CropOut[]` |
+| GET | `/api/wholesalers` | 도매처 목록 — 추천·거래 응답의 도매처 id 에 이름을 붙일 때 | `WholesalerOut[]` |
+
+## 농가 대시보드 (SPEC 4.2 / 7.1)
+
+| 메서드 | 경로 | 설명 | 응답 |
+|---|---|---|---|
+| GET | `/api/farms` | 농가 목록 — 재배 중인 작물과 예상 수확량 포함 | `FarmOut[]` |
+| GET | `/api/farms/{id}` | 농가 하나 | `FarmOut` |
+| GET | `/api/shipments?farm_id=&crop_id=` | 출하 이력 — 출하마다 붙은 거래(SPEC 7.1)까지. 출하 예정일 내림차순 | `ShipmentOut[]` |
+| POST | `/api/farms/{id}/shipments` | 작물 등록 — 품목·출하량·출하 예정일·등급 | `ShipmentOut` (201) |
+
+`crops` 는 `smartfarms` 를 농가 단위로 묶은 것이고, 최근에 시작한 작기가 먼저
+온다 — SPEC 4.2 메인 현황의 "현재 작물" 이 그 첫 줄이다. 등록한 출하는 그대로
+SPEC 5.2 도매처 추천(`POST /api/recommendations/wholesalers`)의 입력이 되고,
+농가가 고른 도매처는 `POST /api/deals` 로 같은 출하에 붙는다.
+
+없는 농가·품목은 **404**, `qty_kg <= 0` 은 **422**.
+
+```jsonc
+// FarmOut
+{
+  "farm_id": 1, "name": "울퉁불퉁 청년농장", "owner_name": "김농부",
+  "region_id": 1, "region_name": "충남 논산시", "parcel_id": 1,
+  "total_expected_yield_kg": 1400,
+  "crops": [
+    { "smartfarm_id": 2, "smartfarm_name": "2동 딸기 재배구역",
+      "smartfarm_type": "유리온실", "crop_id": 3, "crop_name": "딸기",
+      "started_on": "2026-06-09", "expected_yield_kg": 400 }
+  ]
+}
+
+// ShipmentIn — POST /api/farms/{id}/shipments 본문
+{ "crop_id": 1, "qty_kg": 1000, "ship_date": "2026-08-08", "grade": "special" }
+
+// ShipmentOut
+{
+  "shipment_id": 5, "farm_id": 1, "crop_id": 1, "crop_name": "토마토",
+  "qty_kg": 1000, "ship_date": "2026-08-08",
+  "grade": "special", "grade_label": "특상품",
+  "deals": [
+    { "deal_id": 2, "wholesaler_id": 2, "wholesaler_name": "B 농산물유통",
+      "agreed_price_krw": 2580000, "status": "proposed",
+      "status_label": "추천 제시", "decided_on": null }
+  ]
+}
+
+// WholesalerOut
+{ "id": 2, "name": "B 농산물유통", "region_id": 1,
+  "lat": 36.44, "lon": 126.78, "unit_price_krw": 2580, "capacity_kg": 1000,
+  "fee_rate": 0.03, "transport_cost_per_km": 2000 }
+```
 
 ## AI 농산물 시세 예측 (SPEC 5.1)
 

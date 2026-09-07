@@ -1,4 +1,4 @@
-"""지역·품목 등 공통 참조 데이터."""
+"""지역·품목·도매처 등 공통 참조 데이터."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_session
-from app.schemas.reference import CropOut, RegionOut
+from app.schemas.reference import CropOut, RegionOut, WholesalerOut
 from app.services import reference as service
 
 router = APIRouter(prefix="/api", tags=["reference"])
@@ -20,3 +20,8 @@ def list_regions(session: Session = Depends(get_session)) -> list[RegionOut]:
 @router.get("/crops", response_model=list[CropOut])
 def list_crops(session: Session = Depends(get_session)) -> list[CropOut]:
     return [CropOut.model_validate(c) for c in service.list_crops(session)]
+
+
+@router.get("/wholesalers", response_model=list[WholesalerOut])
+def list_wholesalers(session: Session = Depends(get_session)) -> list[WholesalerOut]:
+    return [WholesalerOut.model_validate(w) for w in service.list_wholesalers(session)]
