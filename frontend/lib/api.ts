@@ -171,3 +171,351 @@ export const getHealth = (options?: RequestOptions) =>
   apiGet<{ status: string }>('/health', options);
 export const getRegions = (options?: RequestOptions) => apiGet<Region[]>('/regions', options);
 export const getCrops = (options?: RequestOptions) => apiGet<Crop[]>('/crops', options);
+
+/* --- AI 농산물 시세 예측 (SPEC 5.1) --- */
+
+export interface ShippingWindowRequest {
+  crop_id: number;
+  region_id: number;
+  qty_kg: number;
+  /** 첫 날짜가 비교 기준이 된다 */
+  candidate_dates: string[];
+  as_of?: string | null;
+}
+
+export interface ShippingWindowRow {
+  date: string;
+  horizon_days: number;
+  expected_price_per_kg: number;
+  expected_revenue_krw: number;
+  change_pct_vs_baseline: number;
+  lower_price_per_kg: number;
+  upper_price_per_kg: number;
+  expected_volume_kg: number;
+  supply_outlook: string;
+  guidance: string;
+  is_baseline: boolean;
+}
+
+export interface ForecastModelInfo {
+  mape_pct: number;
+  backtest_days: number;
+  trained_through: string;
+  max_horizon_days: number;
+}
+
+export interface ShippingWindow {
+  crop_id: number;
+  crop_name: string;
+  region_id: number;
+  region_name: string;
+  qty_kg: number;
+  as_of: string;
+  baseline_date: string;
+  model: ForecastModelInfo;
+  rows: ShippingWindowRow[];
+}
+
+export interface PriceActual {
+  date: string;
+  price_per_kg: number;
+  volume_kg: number;
+}
+
+export interface PriceForecastPoint {
+  date: string;
+  horizon_days: number;
+  expected_price_per_kg: number;
+  lower_price_per_kg: number;
+  upper_price_per_kg: number;
+  expected_volume_kg: number;
+  supply_outlook: string;
+}
+
+export interface PriceForecast {
+  crop_id: number;
+  crop_name: string;
+  region_id: number;
+  region_name: string;
+  as_of: string;
+  horizon_days: number;
+  model: ForecastModelInfo;
+  actuals: PriceActual[];
+  forecast: PriceForecastPoint[];
+}
+
+export const getPriceForecast = (
+  params: { crop_id: number; region_id: number; horizon?: number; as_of?: string },
+  options: RequestOptions = {},
+) => apiGet<PriceForecast>('/forecast/price', { ...options, query: { ...params } });
+
+export const getShippingWindow = (body: ShippingWindowRequest, options?: RequestOptions) =>
+  apiPost<ShippingWindow>('/forecast/shipping-window', body, options);
+
+/* --- 스마트팜 재배환경 통합관리 (SPEC 5.5 / 7.2) --- */
+
+export type ControlDevice = 'pump' | 'fan' | 'light';
+
+/** SPEC 4.5 센서 변화 그래프가 그릴 수 있는 측정 항목 */
+export const SENSOR_METRICS = ['temp_c', 'humidity_pct', 'soil_moisture_pct', 'lux'] as const;
+export type SensorMetric = (typeof SENSOR_METRICS)[number];
+
+export interface MetricStatus {
+  metric: string;
+  label: string;
+  unit: string;
+  value: number;
+  /** 서버가 정한 표시 문자열 — 조도는 절대값이 아니라 "기준의 82%" 다 */
+  display: string;
+  target_min: number | null;
+  target_max: number | null;
+  target_display: string;
+  in_range: boolean;
+  device: ControlDevice | null;
+  device_action: string | null;
+  control_display: string;
+}
+
+export interface DeviceState {
+  device: ControlDevice;
+  action: string;
+  since: string | null;
+  reason: string;
+}
+
+export interface SmartfarmStatus {
+  smartfarm_id: number;
+  name: string;
+  farm_id: number;
+  type: string;
+  crop_id: number;
+  crop: string;
+  ts: string | null;
+  metrics: MetricStatus[];
+  devices: DeviceState[];
+}
+
+export interface SensorPoint {
+  ts: string;
+  temp_c?: number | null;
+  humidity_pct?: number | null;
+  soil_moisture_pct?: number | null;
+  lux?: number | null;
+}
+
+export interface SensorSeries {
+  smartfarm_id: number;
+  metrics: string[];
+  hours: number;
+  from_ts: string | null;
+  to_ts: string | null;
+  points: SensorPoint[];
+}
+
+export const getSmartfarmStatus = (smartfarmId: number, options?: RequestOptions) =>
+  apiGet<SmartfarmStatus>(`/smartfarm/${smartfarmId}/status`, options);
+
+export const getSensorSeries = (
+  smartfarmId: number,
+  params: { metric?: SensorMetric; hours?: number } = {},
+  options: RequestOptions = {},
+) =>
+  apiGet<SensorSeries>(`/smartfarm/${smartfarmId}/readings`, {
+    ...options,
+    query: { metric: params.metric, hours: params.hours },
+  });
+
+/* --- 유휴농지 탐색·지도·상세 (SPEC 5.6 / 7.3 / 4.4 / 4.5) --- */
+
+export type ParcelStatus = 'idle' | 'operating' | 'converted';
+export type ParcelCondition = 'best' | 'good' | 'needs_improvement';
+export type ColdStorageAccess = 'possible' | 'limited' | 'none';
+/** SPEC 4.4 지도 상태 색상 — 상태 최상(녹) / 상태 양호(황) / 개선 필요(적) */
+export type ParcelColor = 'green' | 'amber' | 'red';
+
+export interface ParcelProperties {
+  id: number;
+  name: string;
+  region_id: number;
+  region_name: string;
+  area_pyeong: number;
+  monthly_rent_krw: number;
+  water_access: boolean;
+  cold_storage_access: ColdStorageAccess;
+  soil_grade: string;
+  status: ParcelStatus;
+  status_label: string;
+  condition: ParcelCondition;
+  condition_label: string;
+  color: ParcelColor;
+  color_hex: string;
+}
+
+export interface ParcelFeature {
+  type: 'Feature';
+  id: number;
+  geometry: { type: 'Point'; coordinates: [number, number] };
+  properties: ParcelProperties;
+}
+
+export interface ParcelFeatureCollection {
+  type: 'FeatureCollection';
+  features: ParcelFeature[];
+}
+
+export interface ParcelSummary {
+  region_id: number | null;
+  region_name: string | null;
+  total_count: number;
+  idle_count: number;
+  operating_count: number;
+  converted_count: number;
+  applications_today: number;
+  ai_recommended_deals: number;
+  land_utilization_rate: number;
+  as_of: string;
+}
+
+export interface AxisScore {
+  axis: string;
+  label: string;
+  value: string;
+  score: number;
+  weight: number;
+  weighted: number;
+}
+
+export interface ParcelMatch {
+  rank: number;
+  parcel_id: number;
+  name: string;
+  region_id: number;
+  region_name: string;
+  area_pyeong: number;
+  monthly_rent_krw: number;
+  water_access: boolean;
+  cold_storage_access: ColdStorageAccess;
+  soil_grade: string;
+  status: ParcelStatus;
+  condition: ParcelCondition;
+  lat: number;
+  lon: number;
+  nearest_wholesaler: { id: number; name: string; distance_km: number } | null;
+  total_score: number;
+  axes: AxisScore[];
+  reason: string;
+}
+
+export interface ParcelMatchRequest {
+  crop_id: number;
+  area_min_pyeong: number;
+  area_max_pyeong: number;
+  budget_krw_per_month: number;
+  region_id?: number | null;
+  limit?: number | null;
+  as_of?: string | null;
+}
+
+export interface ParcelMatchResponse {
+  crop_id: number;
+  crop_name: string;
+  as_of: string;
+  weights: Record<string, number>;
+  results: ParcelMatch[];
+}
+
+export interface ParcelFacility {
+  kind: string;
+  name: string;
+  distance_km: number | null;
+  note: string;
+}
+
+export interface ParcelSmartfarm {
+  id: number;
+  name: string;
+  type: string;
+  crop_id: number;
+  crop_name: string;
+  started_on: string;
+  expected_yield_kg: number;
+}
+
+export interface ParcelDetail {
+  id: number;
+  name: string;
+  region_id: number;
+  region_name: string;
+  area_pyeong: number;
+  monthly_rent_krw: number;
+  soil_grade: string;
+  water_access: boolean;
+  cold_storage_access: ColdStorageAccess;
+  cold_storage_label: string;
+  status: ParcelStatus;
+  status_label: string;
+  condition: ParcelCondition;
+  condition_label: string;
+  color: ParcelColor;
+  color_hex: string;
+  lat: number;
+  lon: number;
+  owner: { id: number; name: string; phone: string | null } | null;
+  nearby_facilities: ParcelFacility[];
+  smartfarms: ParcelSmartfarm[];
+  land_utilization_rate: number;
+  application_count: number;
+}
+
+export interface ParcelApplicationRequest {
+  crop_id: number;
+  applicant_name: string;
+  applicant_id?: number | null;
+  phone?: string | null;
+  lease_months?: number;
+  message?: string;
+  match_score?: number | null;
+  applied_on?: string | null;
+}
+
+export interface ParcelApplicationResponse {
+  application: {
+    id: number;
+    parcel_id: number;
+    crop_id: number;
+    applicant_id: number | null;
+    applicant_name: string;
+    phone: string | null;
+    lease_months: number;
+    message: string;
+    match_score: number | null;
+    status: 'pending' | 'accepted' | 'rejected';
+    applied_on: string;
+  };
+  parcel_status: ParcelStatus;
+  parcel_status_label: string;
+}
+
+export const getParcelGeoJson = (regionId?: number | null, options: RequestOptions = {}) =>
+  apiGet<ParcelFeatureCollection>('/parcels/geojson', {
+    ...options,
+    query: { region_id: regionId ?? undefined },
+  });
+
+export const getParcelSummary = (regionId?: number | null, options: RequestOptions = {}) =>
+  apiGet<ParcelSummary>('/parcels/summary', {
+    ...options,
+    query: { region_id: regionId ?? undefined },
+  });
+
+export const getParcelDetail = (parcelId: number, options?: RequestOptions) =>
+  apiGet<ParcelDetail>(`/parcels/${parcelId}`, options);
+
+export const matchParcels = (body: ParcelMatchRequest, options?: RequestOptions) =>
+  apiPost<ParcelMatchResponse>('/parcels/match', body, options);
+
+export const applyForParcel = (
+  parcelId: number,
+  body: ParcelApplicationRequest,
+  options?: RequestOptions,
+) => apiPost<ParcelApplicationResponse>(`/parcels/${parcelId}/applications`, body, options);
