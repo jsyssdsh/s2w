@@ -163,7 +163,12 @@ export function CropWorkspace({
 
   return (
     <div className="space-y-6">
-      <OverviewCards crop={crop} forecast={forecast} recommendation={recommendation} />
+      <OverviewCards
+        crop={crop}
+        forecast={forecast}
+        recommendation={recommendation}
+        hasShipment={shipment !== null}
+      />
 
       <AiAlertList
         shippingWindow={shippingWindow}

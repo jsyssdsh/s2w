@@ -73,12 +73,16 @@ export function buildAlerts({
     });
   }
 
-  for (const event of controls.slice(0, 3)) {
+  // 자동제어는 장치마다 한 줄씩 쌓으면 알림이 금세 길어진다. 최근 기록을
+  // 한 줄로 묶고 가장 최근 판단 근거만 덧붙인다.
+  const recent = controls.slice(0, 3);
+  if (recent.length > 0) {
+    const devices = [...new Set(recent.map((event) => DEVICE_LABEL[event.device]))];
     alerts.push({
-      id: `control-${event.id}`,
+      id: `controls-${recent[0].id}`,
       tone: 'info',
-      title: `${DEVICE_LABEL[event.device]} 자동제어`,
-      body: event.reason,
+      title: `스마트팜 자동제어 ${recent.length}건 실행`,
+      body: `${devices.join(' · ')} — ${recent[0].reason}`,
     });
   }
 

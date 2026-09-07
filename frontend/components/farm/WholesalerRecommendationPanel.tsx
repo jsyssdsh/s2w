@@ -132,8 +132,10 @@ function Body({
                     {candidate.reason}
                   </p>
                 </TD>
-                <TD align="right">{formatWonPerKg(candidate.unit_price_krw)}</TD>
-                <TD align="right">
+                <TD align="right" className="whitespace-nowrap">
+                  {formatWonPerKg(candidate.unit_price_krw)}
+                </TD>
+                <TD align="right" className="whitespace-nowrap">
                   {formatKg(candidate.sellable_kg)}
                   {candidate.unsold_kg > 0 ? (
                     <span className="block text-xs text-bad">
@@ -141,8 +143,10 @@ function Body({
                     </span>
                   ) : null}
                 </TD>
-                <TD align="right">{formatMoney(candidate.transport_cost_krw)}</TD>
-                <TD align="right" className="font-semibold">
+                <TD align="right" className="whitespace-nowrap">
+                  {formatMoney(candidate.transport_cost_krw)}
+                </TD>
+                <TD align="right" className="font-semibold whitespace-nowrap">
                   {formatMoney(candidate.net_profit_krw)}
                 </TD>
                 <TD align="center">
@@ -157,6 +161,7 @@ function Body({
                     <Button
                       size="sm"
                       variant={candidate.rank === 1 ? 'primary' : 'secondary'}
+                      className="whitespace-nowrap"
                       disabled={pendingWholesalerId !== null}
                       onClick={() => onSelect(candidate.wholesaler_id)}
                     >

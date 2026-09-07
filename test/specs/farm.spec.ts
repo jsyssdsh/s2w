@@ -11,6 +11,17 @@ import { expect, test, type Page } from '@playwright/test';
  */
 test.describe.configure({ mode: 'serial' });
 
+test.beforeAll(async ({ playwright }) => {
+  // 시세 예측은 (품목, 지역) 별 모델을 처음 한 번 학습한다
+  // (docs/api/price_forecast.md). 화면의 5초 타임아웃보다 오래 걸릴 수 있으므로
+  // 첫 테스트 전에 API 로 한 번 데워 둔다 — 이후에는 캐시된 모델을 쓴다.
+  const api = await playwright.request.newContext({
+    baseURL: process.env.BASE_URL ?? 'http://localhost:8000',
+  });
+  await api.get('/api/forecast/price?crop_id=1&region_id=1', { timeout: 180_000 });
+  await api.dispose();
+});
+
 const TOMATO_YIELD = '1,000kg';
 const ANCHOR_PRICE = '2,450원/kg';
 const BEST_WHOLESALER = 'B 농산물유통';

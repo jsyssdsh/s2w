@@ -21,6 +21,7 @@ import {
   type ControlDevice,
   type SmartfarmStatus,
 } from '@/lib/api';
+import { formatDate } from '@/lib/format';
 
 /** SPEC 5.5 구동장치의 한국어 이름. */
 export const DEVICE_LABEL: Record<ControlDevice, string> = {
@@ -30,6 +31,13 @@ export const DEVICE_LABEL: Record<ControlDevice, string> = {
 };
 
 const ACTION_LABEL: Record<string, string> = { on: '가동 중', off: '정지' };
+
+/** "2026-08-08T23:00:00" → "2026년 8월 8일 23:00" */
+function formatMeasuredAt(ts: string | null): string {
+  if (!ts) return '측정값 없음';
+  const [day, time] = ts.split('T');
+  return `${formatDate(day)} ${time?.slice(0, 5) ?? ''} 측정`.trim();
+}
 
 /**
  * 스마트팜 상태 패널 (SPEC 4.2) — 온도 / 습도 / 조도 / 워터펌프 상태.
@@ -44,7 +52,7 @@ export function SmartfarmPanel({ status }: { status: AsyncState<SmartfarmStatus>
         title="스마트팜 상태"
         description={
           status.status === 'success'
-            ? `${status.data.name} · ${status.data.type} — ${status.data.ts ?? '측정값 없음'}`
+            ? `${status.data.name} · ${status.data.type} — ${formatMeasuredAt(status.data.ts)}`
             : '온도 · 습도 · 조도 · 워터펌프 상태를 적정 기준과 비교합니다.'
         }
       />

@@ -27,6 +27,7 @@ import {
   formatAxisDate,
   formatKg,
   formatMonthDay,
+  formatPercent,
   formatTrend,
   formatWonPerKg,
   formatMoney,
@@ -61,7 +62,7 @@ export function PriceAnalysisPanel({
           title="시세 변화 그래프"
           description={
             forecast.status === 'success'
-              ? `${forecast.data.crop_name} · ${forecast.data.region_name} — 최근 실적과 향후 ${forecast.data.horizon_days}일 예측 (홀드아웃 MAPE ${forecast.data.model.mape_pct}%)`
+              ? `${forecast.data.crop_name} · ${forecast.data.region_name} — 최근 실적과 향후 ${forecast.data.horizon_days}일 예측 (홀드아웃 MAPE ${formatPercent(forecast.data.model.mape_pct, { digits: 2 })})`
               : '최근 도매 시세와 AI 예측 구간을 함께 봅니다.'
           }
         />

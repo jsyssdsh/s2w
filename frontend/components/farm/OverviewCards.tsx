@@ -42,10 +42,13 @@ export function OverviewCards({
   crop,
   forecast,
   recommendation,
+  hasShipment,
 }: {
   crop: CropStatus | null;
   forecast: AsyncState<PriceForecast>;
   recommendation: AsyncState<WholesalerRecommendation>;
+  /** 추천의 기준이 될 출하가 있는가 — 없으면 추천 두 칸은 안내로 채운다 */
+  hasShipment: boolean;
 }) {
   const actuals = forecast.status === 'success' ? forecast.data.actuals : [];
   const latest = actuals.at(-1);
@@ -81,7 +84,9 @@ export function OverviewCards({
           hint={`${data.region_name} · ${data.as_of} 기준`}
         />
       ))}
-      {tileFor(recommendation, 'AI 추천 유통처', () =>
+      {!hasShipment ? (
+        <PendingTile label="AI 추천 유통처" hint="출하를 등록하면 추천합니다" />
+      ) : tileFor(recommendation, 'AI 추천 유통처', () =>
         best ? (
           <StatTile
             label="AI 추천 유통처"
@@ -92,7 +97,9 @@ export function OverviewCards({
           <PendingTile label="AI 추천 유통처" hint="출하를 등록하면 추천합니다" />
         ),
       )}
-      {tileFor(recommendation, '예상 수익률', () =>
+      {!hasShipment ? (
+        <PendingTile label="예상 수익률" hint="출하를 등록하면 계산합니다" />
+      ) : tileFor(recommendation, '예상 수익률', () =>
         marginRatio !== undefined ? (
           <StatTile
             label="예상 수익률"
