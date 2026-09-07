@@ -1,19 +1,189 @@
 @import 'tailwindcss';
 
-/* Design tokens. The 디자인 시스템 bead (SPEC 4.1) fills this out; keep the
-   names stable so feature screens can rely on them. */
+/* ---------------------------------------------------------------------------
+   디자인 시스템 토큰 (SPEC 4.1)
+
+   1. 팔레트 — 흙(soil) · 새싹(sprout) · 수확(harvest) · 황토(clay) · 물(water)
+   2. 시맨틱 토큰 — 라이트/다크 양쪽에서 같은 이름으로 쓴다
+   3. 상태 색 — SPEC 4.4 의 상태 최상(녹) / 양호(황) / 개선 필요(적)
+
+   화면 코드는 **시맨틱 토큰**(surface, ink, accent, status-*)만 쓴다.
+   원시 팔레트는 여기서 시맨틱 토큰을 정의할 때만 쓴다.
+--------------------------------------------------------------------------- */
+
 @theme {
-  --color-soil-50: #f6f7f2;
+  /* 흙 — 중립 배경과 텍스트 (따뜻한 회녹색) */
+  --color-soil-50: #f7f8f3;
+  --color-soil-100: #eef0e6;
+  --color-soil-200: #dce0ce;
+  --color-soil-300: #bfc6ac;
+  --color-soil-400: #99a385;
+  --color-soil-500: #7a8567;
+  --color-soil-600: #5f6950;
+  --color-soil-700: #4a5340;
+  --color-soil-800: #333a2c;
   --color-soil-900: #23301f;
+  --color-soil-950: #151d13;
+
+  /* 새싹 — 주조색 */
+  --color-sprout-50: #f0f9ef;
+  --color-sprout-100: #ddf0db;
+  --color-sprout-200: #bce1b9;
+  --color-sprout-300: #8fcb8b;
+  --color-sprout-400: #64b25f;
   --color-sprout-500: #4d9a4a;
   --color-sprout-600: #3d7c3b;
+  --color-sprout-700: #326330;
+  --color-sprout-800: #2a4f29;
+  --color-sprout-900: #1f3b1f;
+
+  /* 수확 — 주의·강조 (황) */
+  --color-harvest-100: #fdf1d3;
+  --color-harvest-300: #f2cf74;
+  --color-harvest-500: #d99e21;
+  --color-harvest-600: #b47c16;
+  --color-harvest-800: #6d4a0c;
+
+  /* 황토 — 위험·감소 (적) */
+  --color-clay-100: #fbe3dc;
+  --color-clay-300: #eba692;
+  --color-clay-500: #c85a38;
+  --color-clay-600: #a4462a;
+  --color-clay-800: #5f2717;
+
+  /* 물 — 정보·보조 계열 */
+  --color-water-100: #dceaf3;
+  --color-water-300: #94c2dc;
+  --color-water-500: #3d84ad;
+  --color-water-600: #2f6a8c;
+  --color-water-800: #1d4257;
+
+  /* 한글 우선 폰트 스택 — 별도 웹폰트를 받지 않는다 (정적 내보내기·오프라인) */
+  --font-sans:
+    'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont,
+    'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Segoe UI', Roboto,
+    sans-serif;
+  --font-mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'D2Coding', monospace;
+}
+
+/* 시맨틱 토큰 — `inline` 이라 유틸리티가 var() 를 그대로 참조하고,
+   아래 :root / 다크 블록에서 값만 갈아끼우면 라이트·다크가 함께 동작한다. */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-inverted: var(--ink-inverted);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  /* 차트 계열색 — 최대 5개. 새 색을 추가하지 말고 이 안에서 쓴다. */
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
 }
 
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
+
+  --canvas: var(--color-soil-50);
+  --surface: #ffffff;
+  --surface-muted: var(--color-soil-100);
+  --line: var(--color-soil-200);
+  --line-strong: var(--color-soil-300);
+  --ink: var(--color-soil-900);
+  --ink-muted: var(--color-soil-600);
+  --ink-inverted: #ffffff;
+  --accent: var(--color-sprout-600);
+  --accent-strong: var(--color-sprout-700);
+  --accent-soft: var(--color-sprout-100);
+
+  --good: var(--color-sprout-700);
+  --good-soft: var(--color-sprout-100);
+  --warn: var(--color-harvest-800);
+  --warn-soft: var(--color-harvest-100);
+  --bad: var(--color-clay-600);
+  --bad-soft: var(--color-clay-100);
+  --info: var(--color-water-600);
+  --info-soft: var(--color-water-100);
+
+  --series-1: var(--color-sprout-600);
+  --series-2: var(--color-water-500);
+  --series-3: var(--color-harvest-500);
+  --series-4: var(--color-clay-500);
+  --series-5: var(--color-soil-500);
 }
 
-body {
-  background-color: var(--color-soil-50);
-  color: var(--color-soil-900);
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: var(--color-soil-950);
+    --surface: #1b2318;
+    --surface-muted: #232d1f;
+    --line: #35402f;
+    --line-strong: #4a5740;
+    --ink: var(--color-soil-100);
+    --ink-muted: var(--color-soil-300);
+    --ink-inverted: var(--color-soil-950);
+    --accent: var(--color-sprout-400);
+    --accent-strong: var(--color-sprout-300);
+    --accent-soft: #24371f;
+
+    --good: var(--color-sprout-300);
+    --good-soft: #24371f;
+    --warn: var(--color-harvest-300);
+    --warn-soft: #3b2c0c;
+    --bad: var(--color-clay-300);
+    --bad-soft: #3d1d13;
+    --info: var(--color-water-300);
+    --info-soft: #17303f;
+
+    --series-1: var(--color-sprout-300);
+    --series-2: var(--color-water-300);
+    --series-3: var(--color-harvest-300);
+    --series-4: var(--color-clay-300);
+    --series-5: var(--color-soil-300);
+  }
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    /* 한글은 자간이 좁으면 읽기 어렵다 */
+    letter-spacing: -0.01em;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    /* 숫자는 어디서나 자리수가 흔들리지 않게 */
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* 금액·수량 표기 전용 — 표에서 자리수를 맞춘다 */
+  .numeric {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
 }
