@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.db import SessionLocal, create_all
-from app.routers import health, reference
+from app.routers import buyer_match, health, reference
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ app = FastAPI(
 # --- feature routers (one line each) --------------------------------------
 app.include_router(health.router)
 app.include_router(reference.router)
+app.include_router(buyer_match.router)
 # --------------------------------------------------------------------------
 
 
