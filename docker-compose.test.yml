@@ -23,13 +23,12 @@ services:
       retries: 10
 
   playwright:
-    image: mcr.microsoft.com/playwright:v1.52.0-jammy
+    # Built rather than pulled: the runner needs `npm ci` to have installed
+    # @playwright/test inside the image before the specs can load.
+    build:
+      context: ./test
     depends_on:
       app:
         condition: service_healthy
     environment:
       - BASE_URL=http://app:8000
-    working_dir: /work
-    volumes:
-      - ./test:/work
-    command: npx playwright test
