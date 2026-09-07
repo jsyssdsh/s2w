@@ -86,10 +86,8 @@ def _summarise(session: Session, farm: Farm) -> FarmSummary:
             started_on=house.started_on,
             expected_yield_kg=house.expected_yield_kg,
         )
-        # 시작일이 최근인 재배구역을 앞에 둔다 — "현재 작물" 은 가장 최근 작기다.
-        for house in sorted(
-            farm.smartfarms, key=lambda h: (h.started_on, h.id), reverse=True
-        )
+        # 재배구역 번호 순 — "1동 토마토" 가 SPEC 4.2 의 "현재 작물" 이다.
+        for house in sorted(farm.smartfarms, key=lambda h: h.id)
     ]
     return FarmSummary(
         farm_id=farm.id,

@@ -13,6 +13,29 @@ import {
 } from '@/lib/api';
 import { formatDate, formatKg } from '@/lib/format';
 
+/** 숫자·날짜 입력 — 디자인 시스템에 없는 두 가지만 여기서 만든다. */
+function Field({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <label htmlFor={id} className="text-sm whitespace-nowrap text-ink-muted">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const INPUT_CLASS =
+  'h-9 w-full min-w-0 rounded-lg border border-line-strong bg-surface px-2.5 text-sm text-ink';
+
 /**
  * 빠른 기능 ① 작물 등록 (SPEC 4.2).
  *
@@ -27,7 +50,7 @@ export function CropRegisterPanel({
 }: {
   farm: Farm;
   crops: Crop[];
-  /** 기본 출하 예정일 — 시세 이력의 기준일을 그대로 쓴다 (벽시계 미사용) */
+  /** 기본 출하 예정일 — 시세 이력의 기준일을 쓴다 (벽시계를 쓰지 않는다) */
   defaultShipDate: string;
   onCreated: (shipment: Shipment) => void;
 }) {
@@ -74,46 +97,36 @@ export function CropRegisterPanel({
       <CardBody>
         <form className="grid grid-cols-1 gap-4 sm:grid-cols-2" onSubmit={submit}>
           <Select
+            id="register-crop"
             label="품목"
-            data-testid="register-crop"
-            className="flex-col items-start gap-1.5 sm:flex-row sm:items-center"
             value={cropId}
             onChange={(event) => setCropId(event.target.value)}
             options={crops.map((crop) => ({ value: String(crop.id), label: crop.name }))}
           />
-          <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-            <label htmlFor="register-qty" className="text-sm whitespace-nowrap text-ink-muted">
-              출하량 (kg)
-            </label>
+          <Field id="register-qty" label="출하량 (kg)">
             <input
               id="register-qty"
-              data-testid="register-qty"
               type="number"
               min={1}
               step={1}
               inputMode="numeric"
               value={qty}
               onChange={(event) => setQty(event.target.value)}
-              className="numeric h-9 w-full rounded-lg border border-line-strong bg-surface px-2.5 text-sm text-ink sm:w-32"
+              className={`numeric ${INPUT_CLASS} sm:max-w-32`}
             />
-          </div>
-          <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-            <label htmlFor="register-date" className="text-sm whitespace-nowrap text-ink-muted">
-              출하 예정일
-            </label>
+          </Field>
+          <Field id="register-date" label="출하 예정일">
             <input
               id="register-date"
-              data-testid="register-date"
               type="date"
               value={shipDate}
               onChange={(event) => setShipDate(event.target.value)}
-              className="h-9 w-full rounded-lg border border-line-strong bg-surface px-2.5 text-sm text-ink sm:w-44"
+              className={`${INPUT_CLASS} sm:max-w-44`}
             />
-          </div>
+          </Field>
           <Select
+            id="register-grade"
             label="등급"
-            data-testid="register-grade"
-            className="flex-col items-start gap-1.5 sm:flex-row sm:items-center"
             value={grade}
             onChange={(event) => setGrade(event.target.value as Grade)}
             options={GRADE_OPTIONS.map((option) => ({
@@ -122,7 +135,7 @@ export function CropRegisterPanel({
             }))}
           />
           <div className="sm:col-span-2">
-            <Button type="submit" data-testid="register-submit" disabled={!valid || pending}>
+            <Button type="submit" disabled={!valid || pending}>
               {pending ? '등록 중…' : '작물 등록'}
             </Button>
           </div>
@@ -134,9 +147,11 @@ export function CropRegisterPanel({
           </AlertBanner>
         ) : null}
         {done && !error ? (
-          <AlertBanner tone="good" className="mt-4" data-testid="register-done">
-            {`${formatDate(done.ship_date)} 출하 · ${done.crop_name} ${formatKg(done.qty_kg)} (${done.grade_label}) 등록을 마쳤습니다.`}
-          </AlertBanner>
+          <div data-testid="register-done" className="mt-4">
+            <AlertBanner tone="good">
+              {`${formatDate(done.ship_date)} 출하 · ${done.crop_name} ${formatKg(done.qty_kg)} (${done.grade_label}) 등록을 마쳤습니다.`}
+            </AlertBanner>
+          </div>
         ) : null}
       </CardBody>
     </Card>

@@ -6,9 +6,16 @@ import { expect, test, type Page } from '@playwright/test';
  */
 
 const ROUTES = [
-  { testId: 'entry-farm', path: '/farm/', heading: '농가 대시보드' },
-  { testId: 'entry-distributor', path: '/distributor/', heading: '유통업체 대시보드' },
-  { testId: 'entry-land', path: '/land/', heading: '유휴토지 지도' },
+  // `placeholder` 인 화면은 아직 EmptyState 만 있다. 화면 bead 가 내용을
+  // 채우면 이 값을 false 로 바꾼다.
+  { testId: 'entry-farm', path: '/farm/', heading: '농가 대시보드', placeholder: false },
+  {
+    testId: 'entry-distributor',
+    path: '/distributor/',
+    heading: '유통업체 대시보드',
+    placeholder: true,
+  },
+  { testId: 'entry-land', path: '/land/', heading: '유휴토지 지도', placeholder: true },
 ] as const;
 
 async function gotoHome(page: Page) {
@@ -57,10 +64,14 @@ for (const route of ROUTES) {
     await page.getByTestId('entry-cards').getByTestId(route.testId).click();
     await expect(page).toHaveURL(new RegExp(`${route.path}$`));
     await expect(page.getByRole('heading', { level: 1, name: route.heading })).toBeVisible();
-    // 아직 내용이 없는 화면이라도 빈 상태를 보여준다 — 죽은 링크가 없다.
-    await expect(page.getByTestId('empty-state')).toBeVisible();
 
-    await page.getByRole('link', { name: '홈으로 돌아가기' }).click();
+    if (route.placeholder) {
+      // 아직 내용이 없는 화면이라도 빈 상태를 보여준다 — 죽은 링크가 없다.
+      await expect(page.getByTestId('empty-state')).toBeVisible();
+      await page.getByRole('link', { name: '홈으로 돌아가기' }).click();
+    } else {
+      await page.getByRole('link', { name: '울퉁불퉁 농장 AI' }).first().click();
+    }
     await expect(page.getByTestId('entry-cards')).toBeVisible();
   });
 }

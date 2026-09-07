@@ -77,8 +77,8 @@ def test_farm_list_carries_current_crops_and_expected_yield(client: TestClient) 
     assert crops["딸기"]["expected_yield_kg"] == 400
     assert farm["total_expected_yield_kg"] == 1400
     assert farm["region_name"] == "충남 논산시"
-    # 가장 최근에 시작한 작기가 "현재 작물" 로 먼저 온다.
-    assert farm["crops"][0]["crop_name"] == "딸기"
+    # 재배구역 번호 순 — 1동 토마토가 "현재 작물" 이다.
+    assert farm["crops"][0]["crop_name"] == "토마토"
 
 
 def test_unknown_farm_is_404(client: TestClient) -> None:
