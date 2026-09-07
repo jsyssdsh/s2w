@@ -1,456 +1,326 @@
-# FinAlly — AI Trading Workstation
+# SPEC.md — AI 기반 유통업 시스템 (울퉁불퉁 농장 AI)
 
-## Project Specification
 
-## 1. Vision
 
-FinAlly (Finance Ally) is a visually stunning AI-powered trading workstation that streams live market data, lets users trade a simulated portfolio, and integrates an LLM chat assistant that can analyze positions and execute trades on the user's behalf. It looks and feels like a modern Bloomberg terminal with an AI copilot.
+---
 
-This is the capstone project for an agentic AI coding course. It is built entirely by Coding Agents demonstrating how orchestrated AI agents can produce a production-quality full-stack application. Agents interact through files in `planning/`.
+## 0. 프로젝트 개요
 
-## 2. User Experience
-
-### First Launch
-
-The user runs a single Docker command (or a provided start script). A browser opens to `http://localhost:8000`. No login, no signup. They immediately see:
-
-- A watchlist of 10 default tickers with live-updating prices in a grid
-- $10,000 in virtual cash
-- A dark, data-rich trading terminal aesthetic
-- An AI chat panel ready to assist
-
-### What the User Can Do
-
-- **Watch prices stream** — prices flash green (uptick) or red (downtick) with subtle CSS animations that fade
-- **View sparkline mini-charts** — price action beside each ticker in the watchlist, accumulated on the frontend from the SSE stream since page load (sparklines fill in progressively)
-- **Click a ticker** to see a larger detailed chart in the main chart area
-- **Buy and sell shares** — market orders only, instant fill at current price, no fees, no confirmation dialog
-- **Monitor their portfolio** — a heatmap (treemap) showing positions sized by weight and colored by P&L, plus a P&L chart tracking total portfolio value over time
-- **View a positions table** — ticker, quantity, average cost, current price, unrealized P&L, % change
-- **Chat with the AI assistant** — ask about their portfolio, get analysis, and have the AI execute trades and manage the watchlist through natural language
-- **Manage the watchlist** — add/remove tickers manually or via the AI chat
-
-### Visual Design
-
-- **Dark theme**: backgrounds around `#0d1117` or `#1a1a2e`, muted gray borders, no pure black
-- **Price flash animations**: brief green/red background highlight on price change, fading over ~500ms via CSS transitions
-- **Connection status indicator**: a small colored dot (green = connected, yellow = reconnecting, red = disconnected) visible in the header
-- **Professional, data-dense layout**: inspired by Bloomberg/trading terminals — every pixel earns its place
-- **Responsive but desktop-first**: optimized for wide screens, functional on tablet
-
-### Color Scheme
-- Accent Yellow: `#ecad0a`
-- Blue Primary: `#209dd7`
-- Purple Secondary: `#753991` (submit buttons)
-
-## 3. Architecture Overview
-
-### Single Container, Single Port
-
-```
-┌─────────────────────────────────────────────────┐
-│  Docker Container (port 8000)                   │
-│                                                 │
-│  FastAPI (Python/uv)                            │
-│  ├── /api/*          REST endpoints             │
-│  ├── /api/stream/*   SSE streaming              │
-│  └── /*              Static file serving         │
-│                      (Next.js export)            │
-│                                                 │
-│  SQLite database (volume-mounted)               │
-│  Background task: market data polling/sim        │
-└─────────────────────────────────────────────────┘
-```
-
-- **Frontend**: Next.js with TypeScript, built as a static export (`output: 'export'`), served by FastAPI as static files
-- **Backend**: FastAPI (Python), managed as a `uv` project
-- **Database**: SQLite, single file at `db/finally.db`, volume-mounted for persistence
-- **Real-time data**: Server-Sent Events (SSE) — simpler than WebSockets, one-way server→client push, works everywhere
-- **AI integration**: LiteLLM → OpenRouter (Cerebras for fast inference), with structured outputs for trade execution
-- **Market data**: Environment-variable driven — simulator by default, real data via Massive API if key provided
-
-### Why These Choices
-
-| Decision | Rationale |
+| 항목 | 내용 |
 |---|---|
-| SSE over WebSockets | One-way push is all we need; simpler, no bidirectional complexity, universal browser support |
-| Static Next.js export | Single origin, no CORS issues, one port, one container, simple deployment |
-| SQLite over Postgres | No auth = no multi-user = no need for a database server; self-contained, zero config |
-| Single Docker container | Students run one command; no docker-compose for production, no service orchestration |
-| uv for Python | Fast, modern Python project management; reproducible lockfile; what students should learn |
-| Market orders only | Eliminates order book, limit order logic, partial fills — dramatically simpler portfolio math |
+| 프로젝트명 | Ai 기반 유통업 시스템 |
+| 서비스명(가칭) | 울퉁불퉁 농장 AI (FarmFlow AI) |
+| 한 줄 정의 | 휴경농지·스마트팜·농산물 유통 데이터를 하나로 묶어, AI가 시세를 예측하고 최적의 도매처·판매처·농지를 추천해주는 생산-유통 통합 플랫폼 |
+| 핵심 사용자 | 신규/청년 농업인, 유통업체(도매처·판매처), 유휴농지 소유자 |
 
 ---
 
-## 4. Directory Structure
+## 1. 개발 배경 및 필요성
 
+### 1.1 문제 인식의 계기
+충남 논산시 소재 고등학교 재학 중 접한 지역 언론 보도를 계기로, 충남 지역 휴경농지 증가 현상에 주목하게 되었다.
+
+- 2024년 충남 휴경농지: **1만 1,135ha, 휴경률 5.2%** — 2022년(4.7%) → 2023년(4.8%) → 2024년(5.2%)으로 **3년 연속 증가**
+- 전국 기준: 휴경 농지 **8만 2,683ha, 휴경률 5.5%**
+
+### 1.2 원인 분석 — 왜 휴경농지가 증가하는가
+
+**① 농가 인구 감소 및 고령화**
+- 2024년 농가 인구: 200만 4천 명 (전년 대비 **4.1% 감소**)
+- 농가 인구 중 **65세 이상 비율 55.8%**, 청년 농가 인구 비중은 계속 감소 추세
+
+**② 청년층의 농업 기피 — 유통구조·수급 불안정**
+- 농업인 실태조사 결과, 기후변화에 따른 잦은 재배 여건 변화와 **판로 확보의 어려움**이 농업경영의 주요 위협 요인으로 나타남
+
+### 1.3 결론 및 아이디어
+> 조사 후 도출한 결론: **수급 불안정과 현재의 유통구조**로 인해 농가 인구 감소 및 휴경농지 증가가 발생하고 있다.
+
+이에 따른 해결 아이디어:
+- 활용되지 않는 **휴경농지를 신규 농업인과 연결**하고, 그 위에 **스마트팜을 조성하는 AI 기반 농업 시스템**을 구축한다.
+- 스마트팜 센서와 관리 시스템을 통해 작물의 생육환경을 실시간 모니터링해, 영농 경험이 부족한 신규 농업인도 안정적으로 작물을 재배할 수 있도록 지원한다.
+- 농지 선정 → 스마트팜 설치 → 재배 관리 → 농산물 판매까지 전 과정을 하나의 플랫폼에서 관리한다.
+
+**수급 불안정 해소 방식**: AI가 시장 수요와 스마트팜 예상 생산량을 분석해 작물별 재배량을 조정하고, 생산된 농산물을 필요한 유통업체와 연결하여 공급 과잉·부족으로 발생하는 수급 불안정을 완화한다.
+
+**기존 유통구조 변화**: 초보 농업인이나 영농 경력이 부족한 신규 농업인은 안정적인 도매처와 도매처에 대한 정보가 부족해 판로를 확보하기 어렵다. 이를 AI가 농산물의 품질, 생산량, 출하 시기에 맞는 유통업체와 도매처를 추천·연결하는 **직거래 중심 구조**로 바꾸어 현재의 유통구조에 변화를 준다.
+
+
+
+## 2. 개발 목표
+
+### 2.1 핵심 기능 구현 목표
+- 휴경농지 정보, 스마트팜 생육 데이터, 농산물 수요 정보를 **하나의 플랫폼에서 관리하는 통합 프로토타입**을 개발한다.
+- 농지 추천, 재배환경 모니터링, 생산량 예측, 유통업체 연결 기능이 순차적으로 작동하도록 구현한다.
+- 신규 농업인과 유통업체가 필요한 정보를 각각 확인할 수 있도록 **사용자 유형별 화면**을 구성한다.
+
+### 2.2 AI 활용 목표
+- 과거 시세, 계절, 출하량을 분석해 농산물의 **가격 흐름과 변동 가능성**을 예측한다.
+- 농업인에게는 품목, 생산량, 출하 시기, 운송비 등을 고려한 **최적의 도매처를 추천**한다.
+- 도매처에는 보유 물량과 납품 조건에 적합한 소매점, 급식업체, 가공업체 등 **판매처를 연결**한다.
+- 생산 예정량과 구매 수요를 비교해 공급 과잉이나 재고 위험을 사전에 알리고, 대체 판매처를 제안한다.
+- 이를 통해 농업인부터 도매처, 최종 판매처까지 이어지는 **효율적인 농산물 유통체계**를 구축한다.
+
+### 2.3 최종 결과 및 검증 목표
+- AI 기반 농산물 유통 플랫폼을 완성하고, 시세 예측의 정확도와 판매처 추천의 적합성을 검증한다.
+- 이를 통해 생산부터 소비까지 연결하는 유통체계의 실현 가능성을 확인한다.
+
+**출처**
+5) 국가데이터처, 「2024년 농림어업조사 결과」, 2025.4.17.
+6) 농림축산식품부 스마트농업정책과, 「스마트 농업, 농지에서 가능성을 확인하다!」, 2026.4.16.
+
+---
+
+## 3. 관련 연구 / 선행 사례 분석
+
+### 3.1 국내 성공 사례 — 팜모닝 (농업 종합 플랫폼)
+그린랩스가 2020년 7월 출시한 팜모닝은 실시간 농산물 경매 시세, 시장별 가격, 병해충 정보, 영농일지, 농자재 및 농산물 장터 등을 제공하는 농업 플랫폼이다.
+
+- 출시 1년 만에 가입 농가 30곳 → 4개월 만에 40만 곳 → 약 1년 6개월 만에 50만 곳 확보
+- 2022년까지 누적 투자금 약 2,100억 원 유치 → **시세·영농정보의 디지털 제공 서비스에 실제 수요가 있음**을 보여줌
+- 그러나 운영사 그린랩스는 사업을 빠르게 확대하며 2023년 매출 373억 원, 영업손실 359억 원을 기록했고, 대규모 설비투자가 필요한 **스마트팜 사업을 중단**하고 구조조정을 진행함
+
+**시사점 → 본 시스템의 설계 방향**
+- 스마트팜을 무리하게 직접 확대하기보다 **소규모 실증 후 단계적으로 설치**한다.
+- 농가에는 예상 순수익 기준으로 도매처를, 도매처에는 적합한 최종 판매처를 추천하는 **유통 연결 기능에 집중**한다.
+- 휴경농지와 신규 농업인의 연결부터 스마트팜 운영, 농산물 판매까지 **하나의 흐름으로 관리**한다는 점에서 차별화한다.
+
+### 3.2 국내 실패 사례 — 김제 스마트팜 혁신밸리 시설 문제
+약 1,000억 원이 투입된 김제 스마트팜 혁신밸리에서 준공 이후 누수와 설비 고장 등의 문제가 발생해 농림축산식품부가 시설 개선과 피해보상 협의를 진행했다.
+
+**시사점 → 본 시스템의 운영 원칙**
+- 시설 설치 전 검증
+- 정기적인 유지보수
+- 단계적 확대
+
+
+---
+
+## 4. 예상 결과물 (프로토타입 화면 설계)
+
+> ※ 아래 앱/화면은 아이디어를 구체화하기 위해 임의로 제작한 결과물이며, 본선 출전 시 수정된 플랫폼 기능과 디자인을 사용할 예정이다.
+
+**앱명(가칭)**: 울퉁불퉁 농장 AI — *AI 기반 스마트팜 생산·유통 플랫폼*
+
+### 4.1 홈 화면
+- 메뉴 선택: 농가 대시보드 / 유통업체 대시보드 / 유휴토지 지도
+- **향후 수정 계획**: 농가·유통업체·유휴농지의 연결 과정을 한눈에 볼 수 있도록 시각화하고, 로그인 및 사용자 유형별 맞춤 메뉴를 추가할 계획
+
+### 4.2 농가 대시보드
+- 메인 현황: 현재 작물, 예상 수확량, 현재 도매가, AI 추천 유통처, 예상 수익률
+- 빠른 기능: 작물 등록 / AI 유통 추천 / 가격 분석 / 거래 현황
+- 스마트팜 상태: 온도 / 습도 / 조도 / 워터펌프 상태
+- AI 분석 알림 (예: 시장 가격 상승 가능성 안내)
+- **향후 수정 계획**: 작물 시세 변화 그래프와 AI 추천 도매처 목록을 추가하고, 예상 순수익과 추천 근거를 바로 비교할 수 있도록 개선
+
+### 4.3 유통업체 대시보드
+- 요약: 공급 가능 건수 / AI 추천 건수 / 예상 금액
+- AI 추천 농가 리스트 (권장 거래가 포함) + 거래 요청 보내기
+- 실시간 시장 분석 (품목별 가격/수요 등락률)
+- **향후 수정 계획**: 농가별 거리, 공급량, 품질 등급, 운송비를 추가하고 예상 순수익과 추천 이유를 비교할 수 있도록 개선
+
+### 4.4 유휴토지 관리 (지도)
+- 요약 지표: 운영 중 / 전환 완료 / 오늘 신청량 / AI 추천 거래
+- 지도 위 상태 색상 구분: 상태 최상(녹) / 상태 양호(황) / 개선 필요(적)
+- **향후 수정 계획**: 농지별 면적, 임대료, 토양 상태, 주변 시설 정보를 추가하고, 신규 농업인이 조건을 비교한 뒤 임대 신청까지 진행할 수 있도록 개선
+
+### 4.5 유휴토지 상세
+- 토지 활용률, 유휴토지 정보(재배 작물, 본영 시작일, 예상 수확량, 스마트팜 유형)
+- 실시간 센서(온도/습도/조도/워터펌프) 및 센서 변화 그래프
+- AI 유통 추천 결과 표시
+- **향후 수정 계획**: 토양수분과 작물 생육 상태에 따른 자동제어 기능을 추가하고, 이상 수치 발생 시 알림과 원인 및 대응 방법을 제공하도록 개선
+
+---
+
+## 5. 주요 기능 명세
+
+### 5.1 AI 농산물 시세 예측
+- **구현 방식**: 과거 가격, 거래량, 출하량, 기상정보를 분석해 종합화된 예상 가격과 매출을 제공. 가격 하락이 예상되면 조기 출하나 대체 판매처도 제안
+- **필요성**: 농산물 가격은 생산량, 기상 상황, 시장 수요에 따라 변동하지만 농가는 이를 종합적으로 분석하기 어려워 현재 시세에만 의존하는 경우가 많음
+- **활용 예시** — 토마토 1,000kg 출하일 결정 비교
+
+| 비교항목 | 8월 8일 출하 | 8월 10일 출하 | 8월 17일 출하 |
+|---|---|---|---|
+| 예상 도매가격 | 2,450원/kg | 2,580원/kg | 2,320원/kg |
+| 예상 판매금액 | 245만 원 | 258만 원 | 232만 원 |
+| 현재 대비 가격 변동 | 기준 | 약 5.3% 상승 | 약 5.3% 하락 |
+| 예상 시장 상황 | 공급량 보통 | 공급량 감소 예상 | 공급량 증가 예상 |
+| 시스템 안내 | 즉시 출하 가능 | 출하 유지 강장 | 조기 출하 검토 |
+
+### 5.2 농가 맞춤형 도매처 추천
+- **구현 방식**: 매입단가, 구매 가능량, 운송비, 수수료 등을 분석하여 도매처별 예상 순수익을 계산하고 가장 유리한 거래처를 추천
+- **필요성**: 매입단가가 높아도 운송비와 수수료가 크거나 전체 물량을 판매하지 못하면 실제 수익은 감소할 수 있음
+- **활용 예시** — 토마토 1,000kg 판매 조건 비교
+
+| 도매처 | 매입단가 | 구매량 | 운송비 | 예상 순수익 | 결과 |
+|---|---|---|---|---|---|
+| A | 2,550원/kg | 1,000kg | 18만 원 | 239만 5,000원 | 2위 |
+| B | 2,580원/kg | 1,000kg | 8만 원 | 242만 2,600원 | 1위 |
+| C | 2,700원/kg | 800kg | 21만 원 | 188만 5,200원 | 3위 |
+
+### 5.3 도매처 맞춤 판매처 연계
+- **구현 방식**: 농산물의 상태, 등급, 판매 기한과 재고데이터를 분석해 적합한 소매점, 급식업체, 식품업체 또는 가공업체와 연결
+- **필요성**: 도매처의 농산물이 실제 수요와 연결되지 않으면 재고와 손해가 늘어날 수 있음
+- **활용 예시** — 판매기한이 서로 다른 토마토 1,700kg의 판매처 찾기
+
+| 보유 농산물 | 주요 상태 | 추천 판매처 |
+|---|---|---|
+| 특상품 300kg | 외관과 크기가 균일함 | 대형마트 |
+| 알판품 700kg | 대용 남용 가능 | 학교급식업체 |
+| 규격 외 500kg | 품질은 정상이나 모양이 불규칙함 | 소스 가공업체 |
+| 판매기한 임박 200kg | 신속한 판매 필요 | 지역 음식점 |
+
+### 5.4 지역별 수급 위험 조기 알림
+- **구현 방식**: 지역 예상 출하량, 도매처 재고량과 판매처 수요를 분석해 수급 위험을 조기에 알리고, 추가 판매처 연결이나 출하 시기 조정 방안을 제안
+- **필요성**: 농산물 공급 과잉이 출하가 시작된 뒤 밝혀지면 가격 하락과 재고 증가에 미리 대응하기 어려움
+- **활용 예시** — 양파 공급량이 구매 수요보다 많아 가격 하락이 예상되는 상황
+
+| 소급 분석 결과 | 물량 |
+|---|---|
+| 농가 출하 예정량 | 120톤 |
+| 도매처 기존 재고량 | 8톤 |
+| 전체 공급량 | 128톤 |
+| 판매처 구매 수요량 | 100톤 |
+| 예상 초과 공급량 | 28톤 |
+| 위험 단계 | 위험 |
+
+| 초과 물량 대응 방안 | 처리 물량 |
+|---|---|
+| 식품가공업체 추가 연결 | 12톤 |
+| 학교급식 업체 추가 연결 | 6톤 |
+| 출하 시기 조정 | 7톤 |
+| 지역 공동판매 연계 | 3톤 |
+| 합계 | 28톤 |
+
+### 5.5 스마트팜 재배환경 통합관리
+- **구현 방식**: 센서로 재배환경을 실시간 측정하고, 이상이 지속되면 워터펌프, 환기장치, 조명 등을 자동으로 제어
+- **필요성**: 온도, 습도, 조도, 토양수분이 적정 범위를 벗어나면 작물의 성패가 좌우될 수 있어 실시간 관리가 필요
+- **활용 예시** — 토마토 재배구역의 생육환경 조절이 필요한 상황
+
+| 측정 항목 | 적정 기준 | 현재 상태 | 자동제어 결과 |
+|---|---|---|---|
+| 온도 | 22~27℃ | 29.4℃ | 환기 후 26.5℃ |
+| 습도 | 60~75% | 68% | 정상 상태 유지 |
+| 토양수 | 35~55% | 28% | 급수 후 41% |
+| 조도 | 설정 기준 이상 | 기준의 82% | 조명 작동 후 101% |
+
+### 5.6 유휴농지 맞춤형 탐색 및 농업인 연결
+- **구현 방식**: 희망 작물, 면적, 예산을 물류 조건과 비교해 유휴농지를 추천
+- **필요성**: 농지의 임대료가 지역/면적/용수/차량 접근성 등 조건과 맞지 않으면 실제 영농에 활용하기 어려움
+- **활용 예시** — 딸기 재배를 준비하는 신규 농업인이 700~1,000평 규모의 농지를 찾는 상황
+
+| 평가 항목 | A 농지 | B 농지 | C 농지 |
+|---|---|---|---|
+| 면적 | 900평 | 1,000평 | 750평 |
+| 월 임대료 | 65만 원 | 55만 원 | 70만 원 |
+| 농업용수 | 확보 | 확보 | 미확보 |
+| 냉장창고 접근성 | 가능 | 제한적 | 가능 |
+| 도매처 거리 | 24km | 38km | 17km |
+| 추천 결과 | 1위 | 2위 | 3위 |
+
+---
+
+## 6. 시스템 구조 (Architecture)
+
+### 6.1 데이터 흐름 개요
 ```
-finally/
-├── frontend/                 # Next.js TypeScript project (static export)
-├── backend/                  # FastAPI uv project (Python)
-│   └── db/                   # Schema definitions, seed data, migration logic
-├── planning/                 # Project-wide documentation for agents
-│   ├── PLAN.md               # This document
-│   └── ...                   # Additional agent reference docs
-├── scripts/
-│   ├── start_mac.sh          # Launch Docker container (macOS/Linux)
-│   ├── stop_mac.sh           # Stop Docker container (macOS/Linux)
-│   ├── start_windows.ps1     # Launch Docker container (Windows PowerShell)
-│   └── stop_windows.ps1      # Stop Docker container (Windows PowerShell)
-├── test/                     # Playwright E2E tests + docker-compose.test.yml
-├── db/                       # Volume mount target (SQLite file lives here at runtime)
-│   └── .gitkeep              # Directory exists in repo; finally.db is gitignored
-├── Dockerfile                # Multi-stage build (Node → Python)
-├── docker-compose.yml        # Optional convenience wrapper
-├── .env                      # Environment variables (gitignored, .env.example committed)
-└── .gitignore
-```
+[1. 데이터 수집]
+공공데이터 API ─┐
+플랫폼 사용자 입력 ─┼─▶ [2. 소프트웨어]
+IoT 센서 데이터 ─┘      서버 컴퓨터 → 데이터 전처리 → 통합 데이터베이스
+                        → AI 의사결정 엔진(가격 예측 / 유통 추천 / 수급위험 분석 / 휴경농지 추천)
+                        → 앱 대시보드(사용자에게 제공)
 
-### Key Boundaries
-
-- **`frontend/`** is a self-contained Next.js project. It knows nothing about Python. It talks to the backend via `/api/*` endpoints and `/api/stream/*` SSE endpoints. Internal structure is up to the Frontend Engineer agent.
-- **`backend/`** is a self-contained uv project with its own `pyproject.toml`. It owns all server logic including database initialization, schema, seed data, API routes, SSE streaming, market data, and LLM integration. Internal structure is up to the Backend/Market Data agents.
-- **`backend/db/`** contains schema SQL definitions and seed logic. The backend lazily initializes the database on first request — creating tables and seeding default data if the SQLite file doesn't exist or is empty.
-- **`db/`** at the top level is the runtime volume mount point. The SQLite file (`db/finally.db`) is created here by the backend and persists across container restarts via Docker volume.
-- **`planning/`** contains project-wide documentation, including this plan. All agents reference files here as the shared contract.
-- **`test/`** contains Playwright E2E tests and supporting infrastructure (e.g., `docker-compose.test.yml`). Unit tests live within `frontend/` and `backend/` respectively, following each framework's conventions.
-- **`scripts/`** contains start/stop scripts that wrap Docker commands.
-
----
-
-## 5. Environment Variables
-
-```bash
-# Required: OpenRouter API key for LLM chat functionality
-OPENROUTER_API_KEY=your-openrouter-api-key-here
-
-# Optional: Massive (Polygon.io) API key for real market data
-# If not set, the built-in market simulator is used (recommended for most users)
-MASSIVE_API_KEY=
-
-# Optional: Set to "true" for deterministic mock LLM responses (testing)
-LLM_MOCK=false
-```
-
-### Behavior
-
-- If `MASSIVE_API_KEY` is set and non-empty → backend uses Massive REST API for market data
-- If `MASSIVE_API_KEY` is absent or empty → backend uses the built-in market simulator
-- If `LLM_MOCK=true` → backend returns deterministic mock LLM responses (for E2E tests)
-- The backend reads `.env` from the project root (mounted into the container or read via docker `--env-file`)
-
----
-
-## 6. Market Data
-
-### Two Implementations, One Interface
-
-Both the simulator and the Massive client implement the same abstract interface. The backend selects which to use based on the environment variable. All downstream code (SSE streaming, price cache, frontend) is agnostic to the source.
-
-### Simulator (Default)
-
-- Generates prices using geometric Brownian motion (GBM) with configurable drift and volatility per ticker
-- Updates at ~500ms intervals
-- Correlated moves across tickers (e.g., tech stocks move together)
-- Occasional random "events" — sudden 2-5% moves on a ticker for drama
-- Starts from realistic seed prices (e.g., AAPL ~$190, GOOGL ~$175, etc.)
-- Runs as an in-process background task — no external dependencies
-
-### Massive API (Optional)
-
-- REST API polling (not WebSocket) — simpler, works on all tiers
-- Polls for the union of all watched tickers on a configurable interval
-- Free tier (5 calls/min): poll every 15 seconds
-- Paid tiers: poll every 2-15 seconds depending on tier
-- Parses REST response into the same format as the simulator
-
-### Shared Price Cache
-
-- A single background task (simulator or Massive poller) writes to an in-memory price cache
-- The cache holds the latest price, previous price, and timestamp for each ticker
-- SSE streams read from this cache and push updates to connected clients
-- This architecture supports future multi-user scenarios without changes to the data layer
-
-### SSE Streaming
-
-- Endpoint: `GET /api/stream/prices`
-- Long-lived SSE connection; client uses native `EventSource` API
-- Server pushes price updates for all tickers known to the system at a regular cadence (~500ms) — in the single-user model this is equivalent to the user's watchlist
-- Each SSE event contains ticker, price, previous price, timestamp, and change direction
-- Client handles reconnection automatically (EventSource has built-in retry)
-
----
-
-## 7. Database
-
-### SQLite with Lazy Initialization
-
-The backend checks for the SQLite database on startup (or first request). If the file doesn't exist or tables are missing, it creates the schema and seeds default data. This means:
-
-- No separate migration step
-- No manual database setup
-- Fresh Docker volumes start with a clean, seeded database automatically
-
-### Schema
-
-All tables include a `user_id` column defaulting to `"default"`. This is hardcoded for now (single-user) but enables future multi-user support without schema migration.
-
-**users_profile** — User state (cash balance)
-- `id` TEXT PRIMARY KEY (default: `"default"`)
-- `cash_balance` REAL (default: `10000.0`)
-- `created_at` TEXT (ISO timestamp)
-
-**watchlist** — Tickers the user is watching
-- `id` TEXT PRIMARY KEY (UUID)
-- `user_id` TEXT (default: `"default"`)
-- `ticker` TEXT
-- `added_at` TEXT (ISO timestamp)
-- UNIQUE constraint on `(user_id, ticker)`
-
-**positions** — Current holdings (one row per ticker per user)
-- `id` TEXT PRIMARY KEY (UUID)
-- `user_id` TEXT (default: `"default"`)
-- `ticker` TEXT
-- `quantity` REAL (fractional shares supported)
-- `avg_cost` REAL
-- `updated_at` TEXT (ISO timestamp)
-- UNIQUE constraint on `(user_id, ticker)`
-
-**trades** — Trade history (append-only log)
-- `id` TEXT PRIMARY KEY (UUID)
-- `user_id` TEXT (default: `"default"`)
-- `ticker` TEXT
-- `side` TEXT (`"buy"` or `"sell"`)
-- `quantity` REAL (fractional shares supported)
-- `price` REAL
-- `executed_at` TEXT (ISO timestamp)
-
-**portfolio_snapshots** — Portfolio value over time (for P&L chart). Recorded every 30 seconds by a background task, and immediately after each trade execution.
-- `id` TEXT PRIMARY KEY (UUID)
-- `user_id` TEXT (default: `"default"`)
-- `total_value` REAL
-- `recorded_at` TEXT (ISO timestamp)
-
-**chat_messages** — Conversation history with LLM
-- `id` TEXT PRIMARY KEY (UUID)
-- `user_id` TEXT (default: `"default"`)
-- `role` TEXT (`"user"` or `"assistant"`)
-- `content` TEXT
-- `actions` TEXT (JSON — trades executed, watchlist changes made; null for user messages)
-- `created_at` TEXT (ISO timestamp)
-
-### Default Seed Data
-
-- One user profile: `id="default"`, `cash_balance=10000.0`
-- Ten watchlist entries: AAPL, GOOGL, MSFT, AMZN, TSLA, NVDA, META, JPM, V, NFLX
-
----
-
-## 8. API Endpoints
-
-### Market Data
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/stream/prices` | SSE stream of live price updates |
-
-### Portfolio
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/portfolio` | Current positions, cash balance, total value, unrealized P&L |
-| POST | `/api/portfolio/trade` | Execute a trade: `{ticker, quantity, side}` |
-| GET | `/api/portfolio/history` | Portfolio value snapshots over time (for P&L chart) |
-
-### Watchlist
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/watchlist` | Current watchlist tickers with latest prices |
-| POST | `/api/watchlist` | Add a ticker: `{ticker}` |
-| DELETE | `/api/watchlist/{ticker}` | Remove a ticker |
-
-### Chat
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/chat` | Send a message, receive complete JSON response (message + executed actions) |
-
-### System
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/health` | Health check (for Docker/deployment) |
-
----
-
-## 9. LLM Integration
-
-When writing code to make calls to LLMs, use cerebras-inference skill to use LiteLLM via OpenRouter to the `openrouter/openai/gpt-oss-120b` model with Cerebras as the inference provider. Structured Outputs should be used to interpret the results.
-
-There is an OPENROUTER_API_KEY in the .env file in the project root.
-
-### How It Works
-
-When the user sends a chat message, the backend:
-
-1. Loads the user's current portfolio context (cash, positions with P&L, watchlist with live prices, total portfolio value)
-2. Loads recent conversation history from the `chat_messages` table
-3. Constructs a prompt with a system message, portfolio context, conversation history, and the user's new message
-4. Calls the LLM via LiteLLM → OpenRouter, requesting structured output, using the cerebras-inference skill
-5. Parses the complete structured JSON response
-6. Auto-executes any trades or watchlist changes specified in the response
-7. Stores the message and executed actions in `chat_messages`
-8. Returns the complete JSON response to the frontend (no token-by-token streaming — Cerebras inference is fast enough that a loading indicator is sufficient)
-
-### Structured Output Schema
-
-The LLM is instructed to respond with JSON matching this schema:
-
-```json
-{
-  "message": "Your conversational response to the user",
-  "trades": [
-    {"ticker": "AAPL", "side": "buy", "quantity": 10}
-  ],
-  "watchlist_changes": [
-    {"ticker": "PYPL", "action": "add"}
-  ]
-}
+[3. 하드웨어 · 자동제어]
+스마트팜 센서 → ESP32 엣지 제어기 → MQTT 실시간 통신 ↔ 서버
+서버 판단 → MQTT → ESP32 엣지 제어기 → 릴레이 모듈 → 구동장치(펌프/환기팬/조명 등)
 ```
 
-- `message` (required): The conversational text shown to the user
-- `trades` (optional): Array of trades to auto-execute. Each trade goes through the same validation as manual trades (sufficient cash for buys, sufficient shares for sells)
-- `watchlist_changes` (optional): Array of watchlist modifications
+### 6.2 구성요소 상세
 
-### Auto-Execution
+| 구성요소 | 설명 | 개발 환경 및 구현 방법 |
+|---|---|---|
+| 공공데이터 API | 농산물 가격 및 거래량, 기상, 토양 정보를 수집 | Python `requests`로 공공데이터포털의 aT 농산물 가격정보 API, 기상청 단기예보 API, 농촌진흥청 토양정보를 호출. FastAPI 서버에서 매일 데이터를 갱신하고 PostgreSQL DB에 저장 |
+| 플랫폼 사용자 입력 | 출하량, 재고, 구매 수요, 농지 조건을 입력 | React 웹앱에서 역할별 입력 화면을 구현하고, 입력값은 HTTPS REST API를 통해 FastAPI 서버로 전송. 필수 항목·수량·날짜를 검증한 뒤 DB에 저장 |
+| 스마트팜 IoT 센서 | 온도, 습도, 조도, 토양수분을 측정 | ESP32에 온습도, 조도, 토양수분 센서를 연결. ESP32가 측정값을 일정 시간 간격으로 읽고 Wi-Fi와 MQTT 통신으로 서버에 전송 |
+| 서버 컴퓨터 | 데이터와 사용자 요청을 처리하는 중앙 시스템 | Python FastAPI로 구현. 사용자 요청을 받고 DB·AI 분석 결과를 호출해 앱에 반환하며, 자동제어 명령은 MQTT Broker로 전송 |
+| 데이터 전처리 | 누락·오류 데이터를 정리하고 분석용 데이터로 변환 | Python Pandas, NumPy를 활용. 날짜별 가격 변화율, 도매처까지 거리, 예상 운송비, 공급 대비 수요량 등의 분석 변수를 생성 |
+| 통합 데이터베이스 | 가격, 거래, 농지, 센서 정보를 통합 저장 | PostgreSQL 사용. 위치·거리 기반 농지 및 거래처 분석에는 PostGIS를 적용하고, 센서 데이터와 거래 결과를 시간별로 축적 |
+| AI 의사결정 엔진 | 가격 및 수급을 분석하고 유통 및 농지를 추천 | Python scikit-learn, XGBoost로 구현. 가격 예측은 과거 가격, 거래량, 계절, 기상 데이터를 학습하고, 추천은 거리, 운송비, 수량, 거래 조건, 예상 순수익을 점수화하여 순위를 산출 |
+| 유통 매칭 기능 | 거리, 수량, 비용을 고려해 거래처를 추천 | 예상 순수익 = 판매금액 − 운송비 − 수수료로 계산하고, 재고량·구매 가능량·거리 조건을 함께 반영. 사용자의 실제 거래 선택 결과를 다시 DB에 저장해 추천 기준을 개선 |
+| 역할별 웹 대시보드 | 참여자가 정보를 입력하고 분석 결과를 확인 | React 기반 반응형 웹앱으로 구현. 농가는 출하 및 재배환경을 확인하고, 도매처 및 판매처는 수요를 등록하며, 토지 소유자는 유휴농지를 등록 |
+| MQTT 실시간 통신 | 서버와 ESP32가 데이터를 주고받는 통신 방식 | Mosquitto MQTT Broker 사용. ESP32는 `sensor/data` 주제로 측정값을 전송하고, 서버는 `control/command` 주제로 급수·환기·조명 명령을 전달 |
+| ESP32 엣지 제어기 | 센서값을 보내고 제어 명령을 받는 소형 컴퓨터 | Arduino IDE 또는 PlatformIO 환경에서 C/C++로 구현. 인터넷 연결이 끊겨도 설정된 안전 기준에 따라 펌프 및 환기장치를 제한적으로 제어하도록 설계 |
+| 릴레이 및 구동장치 | 펌프, 환기팬, 조명을 실제로 작동시키는 장치 | ESP32의 디지털 신호로 릴레이를 제어. 예: 토양수분이 기준값 미만이면 급수 시작 명령을 받아 릴레이가 워터펌프 전원을 연결하고, 적정 수분 도달 시 자동 중단 |
 
-Trades specified by the LLM execute automatically — no confirmation dialog. This is a deliberate design choice:
-- It's a simulated environment with fake money, so the stakes are zero
-- It creates an impressive, fluid demo experience
-- It demonstrates agentic AI capabilities — the core theme of the course
-
-If a trade fails validation (e.g., insufficient cash), the error is included in the chat response so the LLM can inform the user.
-
-### System Prompt Guidance
-
-The LLM should be prompted as "FinAlly, an AI trading assistant" with instructions to:
-- Analyze portfolio composition, risk concentration, and P&L
-- Suggest trades with reasoning
-- Execute trades when the user asks or agrees
-- Manage the watchlist proactively
-- Be concise and data-driven in responses
-- Always respond with valid structured JSON
-
-### LLM Mock Mode
-
-When `LLM_MOCK=true`, the backend returns deterministic mock responses instead of calling OpenRouter. This enables:
-- Fast, free, reproducible E2E tests
-- Development without an API key
-- CI/CD pipelines
+**출처**: 아키텍처 및 구성요소 설계는 팀 자체 설계이며, 참고 데이터 출처는 1~6번 항목과 동일
 
 ---
 
-## 10. Frontend Design
+## 7. 운영 시나리오
 
-### Layout
+### 7.1 AI 기반 유통 및 수익 추천
+```
+농가 출하 정보(품목·출하량·출하일 등록)
+  → 시장 및 수요 데이터(가격·거래량·구매요청량 수집)
+  → 데이터 통합
+  → AI 수익 분석(거래처별 순수익 계산 — 거리·운송비·수수료·수요 비교)
+  → 거래처 A / B / C 수익성 비교
+  → 최적 거래처 추천(순수익이 가장 높은 판매처 근거로 제안)
+  → 농가 거래 선택(농가가 실제 거래처를 선택)
+```
+**설명**: 농가의 출하 정보와 거래처의 구매 수요, 시장가격 데이터를 분석하여 거리 및 운송비 및 수수료를 비교한다. 거래처별 예상 순수익을 계산한 뒤 가장 수익성 높은 판매처를 추천하고, 실제 거래 결과는 다음 추천에 반영한다.
 
-The frontend is a single-page application with a dense, terminal-inspired layout. The specific component architecture and layout system is up to the Frontend Engineer, but the UI should include these elements:
+### 7.2 IoT 기반 스마트팜 자동제어
+```
+환경 센서 측정(온도·습도·조도·토양수분)
+  → 센서값 수집
+  → ESP32 제어기(센서 데이터 서버 전송)
+  → MQTT/Wi-Fi 통신
+  → 서버 판단(재배환경 기준값과 비교)
+  → 재배환경 변화 감지(수분·온도·빛이 적정 범위 이탈)
+  → 재배환경 장치 작동(펌프·환기팬·조명 등)
+  → 제어 명령 전송(MQTT)
+  → 릴레이 모듈(ESP32 신호로 전원 제어)
+```
+**설명**: 온도, 습도, 조도, 토양수분 센서가 재배환경을 실시간 측정해 서버로 전송한다. 서버는 작물별 기준값과 비교하여 급수·환기·조명 필요 여부를 판단하고, ESP32와 릴레이를 통해 장치를 자동으로 제어한다.
 
-- **Watchlist panel** — grid/table of watched tickers with: ticker symbol, current price (flashing green/red on change), daily change %, and a sparkline mini-chart (accumulated from SSE since page load)
-- **Main chart area** — larger chart for the currently selected ticker, with at minimum price over time. Clicking a ticker in the watchlist selects it here.
-- **Portfolio heatmap** — treemap visualization where each rectangle is a position, sized by portfolio weight, colored by P&L (green = profit, red = loss)
-- **P&L chart** — line chart showing total portfolio value over time, using data from `portfolio_snapshots`
-- **Positions table** — tabular view of all positions: ticker, quantity, avg cost, current price, unrealized P&L, % change
-- **Trade bar** — simple input area: ticker field, quantity field, buy button, sell button. Market orders, instant fill.
-- **AI chat panel** — docked/collapsible sidebar. Message input, scrolling conversation history, loading indicator while waiting for LLM response. Trade executions and watchlist changes shown inline as confirmations.
-- **Header** — portfolio total value (updating live), connection status indicator, cash balance
-
-### Technical Notes
-
-- Use `EventSource` for SSE connection to `/api/stream/prices`
-- Canvas-based charting library preferred (Lightweight Charts or Recharts) for performance
-- Price flash effect: on receiving a new price, briefly apply a CSS class with background color transition, then remove it
-- All API calls go to the same origin (`/api/*`) — no CORS configuration needed
-- Tailwind CSS for styling with a custom dark theme
+### 7.3 휴경농지 및 작물 매칭
+```
+토지 소유자(유휴농지 발생 등록)      농가(재배 계획과 희망 조건 입력)
+  → 유휴농지 정보(위치·면적·용수·임대기간)   → 농가 재배 조건(희망작물·용도·임대조건)
+       └────────────── 매칭 조건 비교 ──────────────┘
+                          → AI 적합도 분석(용량·기상·면적·거리·용수 조건 분석)
+                          → 적합도 점수 산출
+                          → 농지 및 작물 추천 / 매칭 신청
+                          → 추천 결과 확인
+                          → 스마트팜 재배 시작(협의·계약 진행)
+```
+**설명**: 토지 소유자의 유휴농지 정보와 농가의 희망 작물 및 재배 조건을 비교한다. 위치, 면적, 용수, 토양 등 기상 조건을 분석해 적합한 농지와 권장 작물을 추천하고, 농가가 매칭을 신청해 스마트팜 재배로 연결한다.
 
 ---
 
-## 11. Docker & Deployment
 
-### Multi-Stage Dockerfile
 
-```
-Stage 1: Node 20 slim
-  - Copy frontend/
-  - npm install && npm run build (produces static export)
+## 9. 기대 효과 및 활용 분야
 
-Stage 2: Python 3.12 slim
-  - Install uv
-  - Copy backend/
-  - uv sync (install Python dependencies from lockfile)
-  - Copy frontend build output into a static/ directory
-  - Expose port 8000
-  - CMD: uvicorn serving FastAPI app
-```
+### 9.1 기대 효과
 
-FastAPI serves the static frontend files and all API routes on port 8000.
+**① 휴경농지의 생산 공간 전환**
+유휴농지 정보와 농가의 작물, 면적, 용수 조건을 분석해 적합한 재배지를 연결한다. 방치된 농지를 스마트팜 재배 공간으로 전환해 지역 농업 생산 기반 유지에 도움을 줄 수 있다.
 
-### Docker Volume
+**② 고령 농가의 노동 부담 완화**
+온도, 습도, 조도, 토양수분을 센서로 측정하고 급수, 환기, 조명을 자동 제어한다. 반복 관리 업무를 줄여 고령 농업인도 적은 인력으로 안정적인 재배환경을 관리할 수 있다.
 
-The SQLite database persists via a named Docker volume:
+**③ 농가 수익성과 지역 유통 효율 향상**
+AI가 출하량, 시장가격, 거래처 수요, 거리, 운송비, 수수료를 분석해 예상 순수익이 높은 거래처를 추천한다. 불필요한 운송과 유통비를 줄이고, 학교급식 및 로컬푸드 매장 등 지역 수요와 연결하는 데 활용할 수 있다.
 
-```bash
-docker run -v finally-data:/app/db -p 8000:8000 --env-file .env finally
-```
+### 9.2 활용 분야
 
-The `db/` directory in the project root maps to `/app/db` in the container. The backend writes `finally.db` to this path.
+| 활용 분야 | 활용 방식 | 사업체 예시 |
+|---|---|---|
+| B2B 농산물 유통 및 판매 | AI가 출하량과 수요 및 운송비를 분석해 수익성 높은 거래처를 추천 | 도매시장, 산지유통센터(APC), 농협, 대형마트, 로컬푸드 매장, 식자재 유통업체, 지역 식당 |
+| B2B 스마트팜 운영 지원 | 센서와 자동제어 시스템을 농가와 스마트팜 운영자에게 제공 | 개인 농가, 청년농 스마트팜, 영농조합법인, 스마트팜 단지 등 |
+| B2G 지역 농업 및 유휴농지 관리 | 유휴농지 현황을 관리하고 청년농 및 귀농인과 연결 | 지방자치단체, 농업기술센터, 지역 농협, 귀농귀촌 지원센터 등 |
+| 공공급식 연계 분야 | 학교 및 공공급식소의 수요와 인근 농가를 연결 | 학교급식 지원센터, 학교, 공공기관 급식소, 어린이집 등 |
 
-### Start/Stop Scripts
 
-**`scripts/start_mac.sh`** (macOS/Linux):
-- Builds the Docker image if not already built (or if `--build` flag passed)
-- Runs the container with the volume mount, port mapping, and `.env` file
-- Prints the URL to access the app
-- Optionally opens the browser
-
-**`scripts/stop_mac.sh`** (macOS/Linux):
-- Stops and removes the running container
-- Does NOT remove the volume (data persists)
-
-**`scripts/start_windows.ps1`** / **`scripts/stop_windows.ps1`**: PowerShell equivalents for Windows.
-
-All scripts should be idempotent — safe to run multiple times.
-
-### Optional Cloud Deployment
-
-The container is designed to deploy to AWS App Runner, Render, or any container platform. A Terraform configuration for App Runner may be provided in a `deploy/` directory as a stretch goal, but is not part of the core build.
-
----
-
-## 12. Testing Strategy
-
-### Unit Tests (within `frontend/` and `backend/`)
-
-**Backend (pytest)**:
-- Market data: simulator generates valid prices, GBM math is correct, Massive API response parsing works, both implementations conform to the abstract interface
-- Portfolio: trade execution logic, P&L calculations, edge cases (selling more than owned, buying with insufficient cash, selling at a loss)
-- LLM: structured output parsing handles all valid schemas, graceful handling of malformed responses, trade validation within chat flow
-- API routes: correct status codes, response shapes, error handling
-
-**Frontend (React Testing Library or similar)**:
-- Component rendering with mock data
-- Price flash animation triggers correctly on price changes
-- Watchlist CRUD operations
-- Portfolio display calculations
-- Chat message rendering and loading state
-
-### E2E Tests (in `test/`)
-
-**Infrastructure**: A separate `docker-compose.test.yml` in `test/` that spins up the app container plus a Playwright container. This keeps browser dependencies out of the production image.
-
-**Environment**: Tests run with `LLM_MOCK=true` by default for speed and determinism.
-
-**Key Scenarios**:
-- Fresh start: default watchlist appears, $10k balance shown, prices are streaming
-- Add and remove a ticker from the watchlist
-- Buy shares: cash decreases, position appears, portfolio updates
-- Sell shares: cash increases, position updates or disappears
-- Portfolio visualization: heatmap renders with correct colors, P&L chart has data points
-- AI chat (mocked): send a message, receive a response, trade execution appears inline
-- SSE resilience: disconnect and verify reconnection
