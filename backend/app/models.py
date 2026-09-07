@@ -285,6 +285,10 @@ class ControlEvent(Base):
     action: Mapped[str] = mapped_column(String(16), nullable=False)
     # Korean explanation surfaced in the dashboard.
     reason: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    # Which sensor_readings column drove this command ("temp_c", "lux", ...).
+    # The 환기팬 answers to both temperature and humidity, so the device alone
+    # does not say what value_before/value_after are measuring.
+    metric: Mapped[str | None] = mapped_column(String(32))
     value_before: Mapped[float | None] = mapped_column(Float)
     value_after: Mapped[float | None] = mapped_column(Float)
 

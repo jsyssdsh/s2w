@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.9.0",
     "pydantic-settings>=2.6.0",
     "python-multipart>=0.0.12",
+    "paho-mqtt>=2.1.0",
 ]
 
 [dependency-groups]
