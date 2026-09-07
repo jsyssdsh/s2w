@@ -8,7 +8,7 @@ import { expect, test, type Page } from '@playwright/test';
 const ROUTES = [
   // `empty` 는 아직 화면이 없는 자리표시자 라우트다. 화면을 채우는 bead 가
   // 자기 라우트의 값을 false 로 바꾸고, 내용 검증은 그 화면의 spec 이 한다.
-  { testId: 'entry-farm', path: '/farm/', heading: '농가 대시보드', empty: true },
+  { testId: 'entry-farm', path: '/farm/', heading: '농가 대시보드', empty: false },
   { testId: 'entry-distributor', path: '/distributor/', heading: '유통업체 대시보드', empty: true },
   { testId: 'entry-land', path: '/land/', heading: '유휴토지 지도', empty: false },
 ] as const;

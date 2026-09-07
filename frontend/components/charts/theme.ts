@@ -44,7 +44,11 @@ export interface Series {
   color?: string;
 }
 
-export type ChartDatum = Record<string, string | number | null | undefined>;
+/** 차트 한 점. `[하한, 상한]` 두 값짜리 배열은 범위 Area (예측 구간) 용이다. */
+export type ChartDatum = Record<
+  string,
+  string | number | readonly number[] | null | undefined
+>;
 
 /** 값 포맷터 — `lib/format.ts` 함수를 그대로 넘긴다. */
 export type ValueFormatter = (value: number) => string;

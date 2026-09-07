@@ -4,6 +4,7 @@
  */
 export { LineChart } from './LineChart';
 export { BarChart } from './BarChart';
+export { ForecastChart } from './ForecastChart';
 export {
   SERIES_COLORS,
   seriesColor,

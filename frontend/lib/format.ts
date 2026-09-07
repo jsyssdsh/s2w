@@ -197,6 +197,14 @@ export function toIsoDate(input: DateInput): string {
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
+/** n 일 뒤(음수면 앞)의 `YYYY-MM-DD`. 시간대·벽시계에 의존하지 않는다. */
+export function addDays(input: DateInput, days: number): string {
+  const { y, m, d } = parts(input);
+  const shifted = new Date(Date.UTC(y, m - 1, d + days));
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
+}
+
 /** 두 날짜 사이의 일수 (부호 있음) */
 export function daysBetween(from: DateInput, to: DateInput): number {
   const a = parts(from);
