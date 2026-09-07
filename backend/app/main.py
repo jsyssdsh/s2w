@@ -24,6 +24,7 @@ from app.routers import (
     reference,
     smartfarm,
     supply_risk,
+    wholesaler_rec,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ app.include_router(parcel_match.router)
 app.include_router(price_forecast.router)
 app.include_router(smartfarm.router)
 app.include_router(supply_risk.router)
+app.include_router(wholesaler_rec.router)
 # --------------------------------------------------------------------------
 
 
