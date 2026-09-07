@@ -13,13 +13,19 @@ __pycache__/
 
 # Database
 db/
-**/db/finally.db
+*.db
 
 # Next.js
 .next/
 out/
+next-env.d.ts
+*.tsbuildinfo
 
 # Test artifacts
 .pytest_cache/
 test-results/
 playwright-report/
+
+# Gas Town agent overlays (runtime artifacts, never project content)
+CLAUDE.md
+AGENTS.md

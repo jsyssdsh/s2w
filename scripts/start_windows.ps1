@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
-$ContainerName = "finally"
-$ImageName = "finally"
+$ContainerName = "farmflow"
+$ImageName = "farmflow"
 $Port = 8000
 
 Set-Location "$PSScriptRoot\.."
@@ -25,9 +25,9 @@ docker rm -f $ContainerName 2>$null | Out-Null
 docker run -d `
     --name $ContainerName `
     -p "${Port}:8000" `
-    -v finally-data:/app/db `
+    -v farmflow-data:/app/db `
     --env-file .env `
     $ImageName
 
-Write-Host "FinAlly running at http://localhost:$Port"
+Write-Host "울퉁불퉁 농장 AI running at http://localhost:$Port"
 Start-Process "http://localhost:$Port"

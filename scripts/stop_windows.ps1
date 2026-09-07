@@ -1,8 +1,8 @@
 $ErrorActionPreference = "Stop"
 
-$ContainerName = "finally"
+$ContainerName = "farmflow"
 
 # Stop and remove container, keep volume (idempotent)
 docker rm -f $ContainerName 2>$null | Out-Null
 
-Write-Host "FinAlly stopped."
+Write-Host "울퉁불퉁 농장 AI stopped."
