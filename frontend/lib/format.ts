@@ -205,3 +205,18 @@ export function daysBetween(from: DateInput, to: DateInput): number {
     (Date.UTC(b.y, b.m - 1, b.d) - Date.UTC(a.y, a.m - 1, a.d)) / 86_400_000,
   );
 }
+
+/**
+ * 시각 — "2026-08-08T14:00:00" → "14:00" (SPEC 4.5 센서 변화 그래프의 축 라벨).
+ *
+ * 날짜와 마찬가지로 문자열을 그대로 읽는다. 센서 `ts` 는 시간대 없는 지역 시각이라
+ * `new Date()` 로 파싱하면 브라우저 시간대만큼 밀린다.
+ */
+export function formatClock(input: DateInput): string {
+  if (typeof input === 'string') {
+    const match = /T(\d{2}):(\d{2})/.exec(input);
+    if (match) return `${match[1]}:${match[2]}`;
+  }
+  const date = input instanceof Date ? input : new Date(input);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
