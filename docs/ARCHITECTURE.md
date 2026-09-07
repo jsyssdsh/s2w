@@ -173,17 +173,111 @@ haversine 으로 계산되어 나온다.** 좌표를 옮기면 값이 달라지�
 
 ## 8. 프론트엔드
 
-- Next.js **App Router**, TypeScript, Tailwind.
+- Next.js **App Router**, TypeScript, Tailwind v4.
 - `next.config.ts` 는 `output: 'export'` — 빌드 결과가 `out/` 에 정적 파일로
   나오고 FastAPI 가 서빙한다. **서버 컴포넌트에서의 런타임 데이터 페칭이나
   서버 액션은 쓸 수 없다.** 데이터는 클라이언트에서 `lib/api.ts` 로 가져온다.
+  동적 라우트는 `generateStaticParams` 없이는 쓸 수 없다.
 - 모든 사용자 대면 문구는 **한국어**로, SPEC 4장의 표현을 따른다.
+
+### 8.1 재사용 규칙 (중요)
+
+화면 bead 는 아래 것들을 **새로 만들지 말고 가져다 쓴다.** 같은 역할의
+컴포넌트·포맷터·차트 의존성이 두 벌 생기면 화면마다 숫자 표기와 색이 갈린다.
+
+```
+frontend/
+├── app/
+│   ├── layout.tsx            헤더·푸터·역할 상태 (화면 bead 는 건드리지 않는다)
+│   ├── page.tsx              홈 (SPEC 4.1)
+│   ├── farm/                 농가 대시보드 (SPEC 4.2)
+│   ├── distributor/          유통업체 대시보드 (SPEC 4.3)
+│   └── land/                 유휴토지 지도·상세 (SPEC 4.4 / 4.5)
+├── components/
+│   ├── AppShell.tsx          화면 본문 틀 — 모든 page.tsx 가 이걸로 감싼다
+│   ├── SiteHeader.tsx        내비게이션 + 역할 전환기
+│   ├── RoleProvider.tsx      useRole() — 사용자 유형 상태
+│   ├── ui/                   디자인 시스템
+│   ├── charts/               차트 래퍼
+│   └── home/                 홈 전용 조각
+└── lib/
+    ├── api.ts                단일 API 클라이언트
+    ├── format.ts             표시 형식
+    ├── roles.ts              사용자 유형 + 내비게이션 목록
+    ├── useApi.ts             로딩/성공/오류 3-상태 훅
+    └── cn.ts                 className 결합
+```
+
+**디자인 시스템 — `components/ui`** (`import { ... } from '@/components/ui'`)
+
+| 컴포넌트 | 용도 |
+|---|---|
+| `Card` / `CardHeader` / `CardBody` / `CardFooter` | 모든 블록의 기본 그릇 |
+| `StatTile` / `StatTileGrid` | 요약 지표 (SPEC 4.3 · 4.4). `deltaPct` 로 등락 표시 |
+| `Badge` / `StatusBadge` | 상태 배지. `StatusBadge` 는 SPEC 4.4 의 상태 최상(녹)·양호(황)·개선 필요(적) |
+| `Table` / `THead` / `TBody` / `TR` / `TH` / `TD` | 비교표. 숫자 열은 `align="right"` |
+| `Button` / `ButtonLink` | 버튼과 버튼형 링크 |
+| `Select` | 네이티브 `<select>` 래퍼 |
+| `EmptyState` | 데이터 없음 · 미구현 라우트 |
+| `Skeleton` / `SkeletonText` / `SkeletonTable` | 로딩 자리표시자 |
+| `AlertBanner` | AI 알림 · 수급 위험 경고 · API 오류 |
+
+색은 **시맨틱 토큰**만 쓴다 (`bg-surface`, `text-ink`, `text-ink-muted`,
+`border-line`, `text-accent`, `text-good` / `warn` / `bad` / `info` 와 `*-soft`
+배경). 라이트·다크가 함께 정의돼 있으므로 화면 코드에 `dark:` 분기가 필요 없다.
+원시 팔레트(`soil` · `sprout` · `harvest` · `clay` · `water`)는
+`app/globals.css` 에서 토큰을 정의할 때만 쓴다.
+
+**포맷터 — `lib/format.ts`**
+
+화면에서 `toLocaleString` 이나 문자열 붙이기를 직접 하지 않는다.
+
+| 함수 | 결과 | 쓰는 곳 |
+|---|---|---|
+| `formatWon(2450)` | `2,450원` | 금액 |
+| `formatWonPerKg(2450)` | `2,450원/kg` | 단가 (SPEC 5.1 · 5.2) |
+| `formatManWon(2395000)` | `239만 5,000원` | 만 원 단위 (SPEC 5.2) |
+| `formatMoney(v)` | 자릿수에 따라 원/만 원 | 표의 금액 열 기본값 |
+| `formatKg` / `formatTon` / `formatWeight` | `1,000kg` / `120톤` | 수량 (SPEC 5.2 · 5.4) |
+| `formatPyeong` / `formatKm` / `formatCelsius` | `900평` / `24km` / `29.4℃` | 농지·거리·센서 |
+| `formatPercent(68)` / `formatRatio(0.03)` | `68%` / `3%` | 백분율 / 0–1 비율 |
+| `formatTrend(5.3)` | `5.3% 상승` | 등락 (SPEC 5.1) |
+| `formatDate` / `formatMonthDay` / `formatAxisDate` | `2026년 8월 8일` / `8월 8일` / `8/8` | 날짜·차트 축 |
+
+`YYYY-MM-DD` 문자열은 `new Date()` 로 감싸지 말고 그대로 넘긴다 — 포맷터가
+시간대 보정 없이 읽는다.
+
+**차트 — `components/charts`**
+
+**recharts 가 유일한 차트 의존성이다.** 두 번째 차트 라이브러리를 추가하지 말고
+`LineChart` / `BarChart` 래퍼를 쓰거나, 필요하면 이 폴더에 래퍼를 늘린다.
+계열색은 `--color-series-1..5` 다섯 개뿐이고 다크 모드에서 자동으로 바뀐다.
+축 라벨은 한국어로 넣고, 값 포맷은 `formatValue` 에 `lib/format.ts` 함수를 넘긴다.
+
+**데이터 로딩**
+
+```tsx
+'use client';
+const crops = useApi(useCallback((opts) => getCrops(opts), []));
+if (crops.status === 'loading') return <SkeletonTable />;
+if (crops.status === 'error') return <AlertBanner tone="bad">{errorMessage(crops.error)}</AlertBanner>;
+```
+
+`lib/api.ts` 에는 **자기 SPEC 절 섹션만** 추가한다 — 공통 영역(요청 헬퍼,
+`ApiError` / `NetworkError`, `AsyncState`)은 건드리지 않는다.
+
+**내비게이션과 사용자 유형**
+
+새 화면은 `lib/roles.ts` 의 `NAV_ITEMS` 에 한 줄 추가하면 헤더·홈 카드·유형별
+메뉴에 함께 나온다. 유형이 필요한 화면은 `useRole()` 을 쓴다.
 
 ---
 
 ## 9. 테스트
 
 - **백엔드**: `backend/tests/` pytest. `cd backend && uv run pytest`
+- **프론트엔드**: 타입·린트·정적 빌드가 게이트다.
+  `cd frontend && npm run typecheck && npm run lint && npm run build`
 - **E2E**: `test/` Playwright, `BASE_URL` 환경변수를 읽는다.
 - 컨테이너 전체 검증:
   ```bash
