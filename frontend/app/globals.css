@@ -1,0 +1,19 @@
+@import 'tailwindcss';
+
+/* Design tokens. The 디자인 시스템 bead (SPEC 4.1) fills this out; keep the
+   names stable so feature screens can rely on them. */
+@theme {
+  --color-soil-50: #f6f7f2;
+  --color-soil-900: #23301f;
+  --color-sprout-500: #4d9a4a;
+  --color-sprout-600: #3d7c3b;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-soil-50);
+  color: var(--color-soil-900);
+}

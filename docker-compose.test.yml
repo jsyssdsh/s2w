@@ -5,12 +5,19 @@ services:
       dockerfile: Dockerfile
     environment:
       - LLM_MOCK=true
-      - MASSIVE_API_KEY=
       - DB_PATH=/tmp/test.db
+      - SEED_ON_START=true
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      # python:3.12-slim ships no curl, so poll with the interpreter instead.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health').read()",
+        ]
       interval: 5s
       timeout: 3s
       retries: 10

@@ -4,9 +4,17 @@
 .claude
 .logs
 .env
-db/
-node_modules/
-__pycache__/
-.venv/
-.next/
-out/
+docs/
+scripts/
+
+# Recursive — plain "node_modules/" would only match at the build context root,
+# so a stale local backend/.venv or frontend/node_modules would be copied in.
+**/db/
+**/node_modules/
+**/__pycache__/
+**/.venv/
+**/.next/
+**/out/
+**/.pytest_cache/
+**/test-results/
+**/playwright-report/
