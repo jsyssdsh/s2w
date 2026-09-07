@@ -1,7 +1,8 @@
 """FastAPI application entry point.
 
-Keep this file boring: one ``include_router`` line per feature and nothing
-else feature-specific, so parallel feature branches do not collide here.
+This file has **no feature-specific code at all** — routers are discovered
+automatically from ``app/routers/``. Feature branches never edit it, so they
+never collide here.
 """
 
 from __future__ import annotations
@@ -16,16 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.db import SessionLocal, create_all
-from app.routers import (
-    buyer_match,
-    health,
-    parcel_match,
-    price_forecast,
-    reference,
-    smartfarm,
-    supply_risk,
-    wholesaler_rec,
-)
+from app.routers import include_all
 
 logger = logging.getLogger(__name__)
 
@@ -50,16 +42,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# --- feature routers (one line each) --------------------------------------
-app.include_router(health.router)
-app.include_router(reference.router)
-app.include_router(buyer_match.router)
-app.include_router(parcel_match.router)
-app.include_router(price_forecast.router)
-app.include_router(smartfarm.router)
-app.include_router(supply_risk.router)
-app.include_router(wholesaler_rec.router)
-# --------------------------------------------------------------------------
+# 기능 라우터는 app/routers/ 에서 자동으로 찾아 등록한다 (모듈 이름 순).
+include_all(app)
 
 
 def _mount_frontend(application: FastAPI) -> None:
