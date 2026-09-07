@@ -415,6 +415,273 @@ export const createDeal = (
 
 export const getDeals = (options?: RequestOptions) => apiGet<Deal[]>('/deals', options);
 
+/* --- 도매처 맞춤 판매처 연계 (SPEC 5.3) --- */
+
+// 등급 문자열(`Grade`)은 SPEC 4.2 출하 등록과 같은 값이라 위에서 그대로 쓴다.
+
+export interface InventoryLot {
+  id: number;
+  wholesaler_id: number;
+  crop_id: number;
+  crop_name: string;
+  grade: Grade;
+  grade_label: string;
+  qty_kg: number;
+  expiry_date: string | null;
+  days_remaining: number | null;
+  near_expiry: boolean;
+}
+
+export interface BuyerMatch {
+  buyer_id: number;
+  buyer_name: string;
+  buyer_type: string;
+  buyer_type_label: string;
+  distance_km: number;
+  demand_kg: number;
+  matched_qty_kg: number;
+  score: number;
+  reason: string;
+}
+
+export interface LotRecommendation {
+  lot: InventoryLot;
+  allocated_kg: number;
+  unallocated_kg: number;
+  recommendations: BuyerMatch[];
+}
+
+export interface BuyerMatchResponse {
+  wholesaler_id: number;
+  wholesaler_name: string;
+  crop_id: number;
+  crop_name: string;
+  as_of: string;
+  total_qty_kg: number;
+  total_allocated_kg: number;
+  total_unallocated_kg: number;
+  lots: LotRecommendation[];
+}
+
+export const getWholesalerInventory = (
+  wholesalerId: number,
+  params?: { crop_id?: number; as_of?: string },
+  options?: RequestOptions,
+) =>
+  apiGet<InventoryLot[]>(`/wholesalers/${wholesalerId}/inventory`, {
+    ...options,
+    query: params,
+  });
+
+export const matchBuyers = (
+  body: { wholesaler_id: number; crop_id: number; as_of?: string },
+  options?: RequestOptions,
+) => apiPost<BuyerMatchResponse>('/recommendations/buyers', body, options);
+
+/* --- 지역별 수급 위험 조기 알림 (SPEC 5.4) --- */
+
+/** 백엔드 `RiskTier` — 값이 그대로 화면에 나가는 한국어 라벨이다. */
+export type RiskTier = '안정' | '주의' | '위험';
+
+export interface AnalysisWindow {
+  start: string;
+  end: string;
+}
+
+export interface VolumeBreakdown {
+  farm_shipment_kg: number;
+  wholesaler_inventory_kg: number;
+  total_supply_kg: number;
+  buyer_demand_kg: number;
+  excess_supply_kg: number;
+}
+
+export interface MitigationAction {
+  channel: string;
+  label: string;
+  qty_kg: number;
+  capacity_kg: number;
+  headroom_kg: number;
+  detail: string;
+}
+
+export interface MitigationPlan {
+  actions: MitigationAction[];
+  target_kg: number;
+  planned_kg: number;
+  shortfall_kg: number;
+  is_fully_covered: boolean;
+}
+
+export interface SupplyRisk {
+  region: Region;
+  crop: Crop;
+  window: AnalysisWindow;
+  volumes: VolumeBreakdown;
+  excess_ratio: number;
+  risk_tier: RiskTier;
+  mitigation: MitigationPlan;
+}
+
+export interface Alert {
+  region: Region;
+  crop: Crop;
+  window: AnalysisWindow;
+  risk_tier: RiskTier;
+  excess_ratio: number;
+  total_supply_kg: number;
+  buyer_demand_kg: number;
+  excess_supply_kg: number;
+  shortfall_kg: number;
+  headline: string;
+}
+
+export const getAlerts = (
+  params: { region_id: number; as_of?: string; window_days?: number },
+  options?: RequestOptions,
+) => apiGet<Alert[]>('/alerts', { ...options, query: params });
+
+export const getSupplyRisk = (
+  params: { region_id: number; crop_id: number; window_start?: string; window_end?: string },
+  options?: RequestOptions,
+) => apiGet<SupplyRisk>('/supply-risk', { ...options, query: params });
+
+/* --- 유통업체 대시보드 (SPEC 4.3) --- */
+
+export interface DistributorWholesaler {
+  id: number;
+  name: string;
+  region_id: number;
+  region_name: string;
+  unit_price_krw: number;
+  capacity_kg: number;
+  fee_rate: number;
+  transport_cost_per_km: number;
+  inventory_lot_count: number;
+}
+
+export interface FarmRecommendation {
+  shipment_id: number;
+  farm_id: number;
+  farm_name: string;
+  region_id: number;
+  region_name: string;
+  crop_id: number;
+  crop_name: string;
+  grade: Grade;
+  grade_label: string;
+  ship_date: string;
+  qty_kg: number;
+  purchasable_kg: number;
+  unsold_kg: number;
+  distance_km: number;
+  transport_cost_krw: number;
+  market_price_per_kg: number;
+  graded_price_per_kg: number;
+  recommended_price_per_kg: number;
+  offer_pct: number;
+  purchase_cost_krw: number;
+  resale_revenue_krw: number;
+  fee_krw: number;
+  expected_net_profit_krw: number;
+  margin_pct: number;
+  /** market = 실측 도매 시세 · forecast = SPEC 5.1 예측 · list = 도매처 고시 단가 */
+  price_source: 'market' | 'forecast' | 'list';
+  requested: boolean;
+  recommended: boolean;
+  reason: string;
+}
+
+export interface RecommendationSummary {
+  supply_count: number;
+  recommended_count: number;
+  expected_amount_krw: number;
+  expected_net_profit_krw: number;
+  supply_qty_kg: number;
+  purchasable_qty_kg: number;
+  requested_count: number;
+}
+
+export interface FarmRecommendationResponse {
+  wholesaler: DistributorWholesaler;
+  as_of: string;
+  window_end: string;
+  summary: RecommendationSummary;
+  rows: FarmRecommendation[];
+}
+
+export interface DealRequest {
+  id: number;
+  shipment_id: number;
+  wholesaler_id: number;
+  wholesaler_name: string;
+  farm_name: string;
+  crop_name: string;
+  qty_kg: number;
+  unit_price_krw: number;
+  agreed_price_krw: number;
+  status: string;
+  created: boolean;
+  message: string;
+}
+
+export interface MarketPoint {
+  date: string;
+  price_per_kg: number;
+  volume_kg: number;
+}
+
+export interface MarketRow {
+  crop_id: number;
+  crop_name: string;
+  unit: string;
+  price_per_kg: number;
+  previous_price_per_kg: number;
+  price_change_pct: number;
+  volume_kg: number;
+  previous_volume_kg: number;
+  demand_change_pct: number;
+  /** 상승세 · 하락세 · 보합 */
+  trend: string;
+  series: MarketPoint[];
+}
+
+export interface MarketSnapshot {
+  region_id: number;
+  region_name: string;
+  as_of: string;
+  lookback_days: number;
+  rows: MarketRow[];
+}
+
+export const getDistributorWholesalers = (options?: RequestOptions) =>
+  apiGet<DistributorWholesaler[]>('/distributor/wholesalers', options);
+
+export const getFarmRecommendations = (
+  params: {
+    wholesaler_id: number;
+    crop_id?: number;
+    as_of?: string;
+    window_days?: number;
+    use_forecast?: boolean;
+  },
+  options?: RequestOptions,
+) => apiGet<FarmRecommendationResponse>('/distributor/farm-recommendations', {
+  ...options,
+  query: params,
+});
+
+export const createDealRequest = (
+  body: { wholesaler_id: number; shipment_id: number; unit_price_krw?: number; as_of?: string },
+  options?: RequestOptions,
+) => apiPost<DealRequest>('/distributor/deal-requests', body, options);
+
+export const getMarketSnapshot = (
+  params?: { region_id?: number; as_of?: string; lookback_days?: number },
+  options?: RequestOptions,
+) => apiGet<MarketSnapshot>('/distributor/market', { ...options, query: params });
+
+
 /* --- 스마트팜 재배환경 통합관리 (SPEC 5.5 / 7.2) --- */
 
 export type ControlDevice = 'pump' | 'fan' | 'light';

@@ -228,7 +228,8 @@ frontend/
 │   ├── RoleProvider.tsx      useRole() — 사용자 유형 상태
 │   ├── ui/                   디자인 시스템
 │   ├── charts/               차트 래퍼
-│   └── home/                 홈 전용 조각
+│   ├── home/                 홈 전용 조각
+│   └── distributor/          유통업체 대시보드 전용 패널
 └── lib/
     ├── api.ts                단일 API 클라이언트
     ├── format.ts             표시 형식

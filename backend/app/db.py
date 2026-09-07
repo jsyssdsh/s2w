@@ -39,6 +39,14 @@ def build_engine(db_path: str | None = None) -> Engine:
         _database_url(path),
         # FastAPI serves requests from a thread pool; sessions are per-request.
         connect_args={"check_same_thread": False},
+        # The default QueuePool (5 + 10 overflow) is smaller than Starlette's
+        # 40-thread pool, so a burst of concurrent requests — a dashboard that
+        # fills several panels at once, or a few browsers at a time — queues on
+        # the pool and eventually fails with a 30s pool timeout. SQLite
+        # connections are cheap file handles, so size the pool for the threads
+        # that can actually ask for one.
+        pool_size=10,
+        max_overflow=40,
         future=True,
     )
 
